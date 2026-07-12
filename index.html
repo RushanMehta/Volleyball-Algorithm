@@ -77,14 +77,14 @@
                 <select id="level">
                     <option value="High School">High School</option>
                     <option value="College">College</option>
-                    <option value="Pro">Professional</option>
+                    <option value="Pro" selected>Professional</option>
                 </select>
             </div>
             <div class="input-group">
                 <label for="gender">Gender Division</label>
                 <select id="gender">
                     <option value="Girls">Girls / Women</option>
-                    <option value="Boys">Boys / Men</option>
+                    <option value="Boys" selected>Boys / Men</option>
                 </select>
             </div>
         </div>
@@ -93,7 +93,7 @@
         <div class="grid-2">
             <div class="input-group">
                 <label for="opp_pass_vs_ts">Opponent Passer Rating vs Topspin</label>
-                <input type="number" id="opp_pass_vs_ts" value="1.8" step="0.1" min="0" max="3">
+                <input type="number" id="opp_pass_vs_ts" value="3.0" step="0.1" min="0" max="3">
             </div>
             <div class="input-group">
                 <label for="opp_pass_vs_fl">Opponent Passer Rating vs Float</label>
@@ -119,17 +119,17 @@
         <div class="grid-2">
             <div class="score-box">
                 <label style="color:#2563eb; font-weight:bold;">OUR SCORE</label>
-                <div class="score-display" id="disp_us">16</div>
+                <div class="score-display" id="disp_us">17</div>
                 <button class="btn-score" onclick="adjustScore('us', 1)">+</button>
                 <button class="btn-score" onclick="adjustScore('us', -1)">-</button>
-                <input type="hidden" id="score_us" value="16">
+                <input type="hidden" id="score_us" value="17">
             </div>
             <div class="score-box">
                 <label style="color:#ef4444; font-weight:bold;">OPPONENT SCORE</label>
-                <div class="score-display" id="disp_them">16</div>
+                <div class="score-display" id="disp_them">17</div>
                 <button class="btn-score" onclick="adjustScore('them', 1)">+</button>
                 <button class="btn-score" onclick="adjustScore('them', -1)">-</button>
-                <input type="hidden" id="score_them" value="16">
+                <input type="hidden" id="score_them" value="17">
             </div>
         </div>
 
@@ -251,22 +251,22 @@ class VolleyballAnalyticalEngine:
             ('High School', 'Boys'): (0.48, 0.28, 0.50),
             ('High School', 'Girls'): (0.38, 0.18, 0.44)
         }
-        return matrix.get((level, gender), (0.45, 0.25, 0.50))
+        in_system_kill, out_system_kill, base_sideout = matrix.get((level, gender), (0.45, 0.25, 0.50))
+        
+        # ENVIRONMENTAL BALANCE: Scale side-out capacity downward if the opponent's passing profile reflects elite performance
+        if self.perfect_pass_rate > 0.75:
+            base_sideout -= 0.15
+            
+        return in_system_kill, out_system_kill, base_sideout
 
     def get_point_win_probability(self, ace, error):
         p_in = 1.0 - (ace + error)
         if p_in <= 0: return ace
         
-        # Combined transition probability that opponent finishes rally on our serve
         opp_rally_win_prob = (self.perfect_pass_rate * self.opp_kill_in_system) + ((1.0 - self.perfect_pass_rate) * self.opp_kill_out_system)
-        
-        # We win the point if we get an ace, OR if the ball goes in and the opponent fails to kill it
         return ace + (p_in * (1.0 - opp_rally_win_prob))
 
     def calculate_exact_set_expectancy(self, start_us, start_them, start_serving, p_win_serve):
-        """
-        Uses explicit backward induction recursion to map out the exact mathematical probability space.
-        """
         memo = {}
 
         def dp(s_us, s_them, server):
@@ -274,19 +274,15 @@ class VolleyballAnalyticalEngine:
             if state in memo:
                 return memo[state]
 
-            # Standard Win / Loss conditions
             if s_us >= 25 and (s_us - s_them) >= 2: return 1.0
             if s_them >= 25 and (s_them - s_us) >= 2: return 0.0
             
-            # Theoretical boundary max ceiling cap safety limit
             if s_us > 32 or s_them > 32:
                 return 0.5 if s_us == s_them else (1.0 if s_us > s_them else 0.0)
 
-            if server == 0:  # We are serving
-                # If we win point, we score and keep serving. If we lose, they score and take over.
+            if server == 0:  # We serve
                 prob = (p_win_serve * dp(s_us + 1, s_them, 0)) + ((1.0 - p_win_serve) * dp(s_us, s_them + 1, 1))
-            else:            # Opponent is serving
-                # If we win point, we score and take over. If we lose, they score and keep serving.
+            else:            # They serve
                 prob = (self.our_receive_sideout_rate * dp(s_us + 1, s_them, 0)) + ((1.0 - self.our_receive_sideout_rate) * dp(s_us, s_them + 1, 1))
 
             memo[state] = prob
