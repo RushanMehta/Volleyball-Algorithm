@@ -24,7 +24,6 @@
         .btn-score { background: #64748b; color: white; border: none; padding: 8px 16px; font-size: 1.1rem; font-weight: bold; border-radius: 5px; cursor: pointer; margin: 0 4px; }
         .btn-score:hover { background: #475569; }
         
-        /* Tactical Evaluation Button Styles */
         .btn-ts { width: 100%; background-color: #2563eb; color: white; border: none; padding: 14px; font-size: 1rem; font-weight: bold; border-radius: 6px; cursor: pointer; margin-top: 5px; transition: background 0.2s; }
         .btn-ts:hover { background-color: #1d4ed8; }
         .btn-fl { width: 100%; background-color: #0d9488; color: white; border: none; padding: 14px; font-size: 1rem; font-weight: bold; border-radius: 6px; cursor: pointer; margin-top: 5px; transition: background 0.2s; }
@@ -71,7 +70,26 @@
         </div>
         <div class="roster-list" id="roster-view"></div>
 
-        <div class="section-title">2. Opponent Serve-Receive Rating (0.0 to 3.0 System)</div>
+        <div class="section-title">2. Competition Level & Environment</div>
+        <div class="grid-2">
+            <div class="input-group">
+                <label for="level">Match Level</label>
+                <select id="level">
+                    <option value="High School">High School</option>
+                    <option value="College">College</option>
+                    <option value="Pro">Professional</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label for="gender">Gender Division</label>
+                <select id="gender">
+                    <option value="Girls">Girls / Women</option>
+                    <option value="Boys">Boys / Men</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="section-title">3. Opponent Serve-Receive Rating (0.0 to 3.0 System)</div>
         <div class="grid-2">
             <div class="input-group">
                 <label for="opp_pass_vs_ts">Opponent Passer Rating vs Topspin</label>
@@ -83,14 +101,14 @@
             </div>
         </div>
 
-        <div class="section-title">3. Active Server Selection</div>
+        <div class="section-title">4. Active Server Selection</div>
         <div class="input-group">
             <label for="active-player">Select Our Active Server</label>
             <select id="active-player" onchange="loadActivePlayerStats()">
                 </select>
         </div>
 
-        <div class="section-title">4. Live Game State</div>
+        <div class="section-title">5. Live Game State</div>
         <div class="input-group">
             <label for="current_poss">Who is serving this point?</label>
             <select id="current_poss" style="background-color: #fffbeb; font-weight: bold; border: 2px solid #f59e0b;">
@@ -120,7 +138,7 @@
         <input type="hidden" id="fl_ace" value="0.05">
         <input type="hidden" id="fl_err" value="0.05">
 
-        <div class="section-title">5. Run Tactical Forecast Sequence</div>
+        <div class="section-title">6. Run Tactical Forecast Sequence</div>
         <div class="grid-2">
             <button id="calc-ts-btn" class="btn-ts" py-click="calculate_topspin">Calculate Win Probability with Topspin</button>
             <button id="calc-fl-btn" class="btn-fl" py-click="calculate_float">Calculate Win Probability with Float</button>
@@ -221,27 +239,40 @@ from pyscript import document
 import random
 
 class VolleyballStabilizedEngine:
-    def __init__(self, pass_rating):
+    def __init__(self, level, gender, pass_rating):
         self.perfect_pass_rate = max(0.05, min(0.95, (pass_rating / 3.0)))
-        self.opp_kill_in_system = 0.52
-        self.opp_kill_out_system = 0.26
-        self.our_receive_sideout_rate = 0.50
+        
+        # Load situational kill and sideout profiles based on competition metrics
+        self.opp_kill_in_system, self.opp_kill_out_system, self.our_receive_sideout_rate = self._get_environmental_baselines(level, gender)
+
+    def _get_environmental_baselines(self, level, gender):
+        # Structured Database: (In-System Kill, Out-of-System Kill, Our Base Side-Out)
+        matrix = {
+            ('Pro', 'Boys'): (0.64, 0.38, 0.65),
+            ('Pro', 'Girls'): (0.54, 0.30, 0.56),
+            ('College', 'Boys'): (0.58, 0.34, 0.60),
+            ('College', 'Girls'): (0.48, 0.26, 0.52),
+            ('High School', 'Boys'): (0.48, 0.28, 0.50),
+            ('High School', 'Girls'): (0.38, 0.18, 0.44)
+        }
+        return matrix.get((level, gender), (0.45, 0.25, 0.50))
 
     def get_point_win_probability(self, ace, error):
         p_in = 1.0 - (ace + error)
         if p_in <= 0: return ace
+        
+        # Opponent efficiency driven directly by environmental parameters mapped against pass value
         opp_efficiency = (self.perfect_pass_rate * self.opp_kill_in_system) + ((1.0 - self.perfect_pass_rate) * self.opp_kill_out_system)
         return ace + (p_in * (1.0 - opp_efficiency))
 
     def run_stabilized_average(self, start_us, start_them, start_serving, p_win_serve, iterations=1000):
-        # Anchor the random number generator seed to lock simulation steps and stop variance bouncing
-        random.seed(42)
+        random.seed(42)  # Fixed seed to lock calculations and eliminate statistical bounce
         wins = 0
         
         for _ in range(iterations):
             score_us = start_us
             score_them = start_them
-            serving_team = start_serving # 0 = us, 1 = them
+            serving_team = start_serving
             
             while True:
                 if score_us >= 25 and (score_us - score_them) >= 2:
@@ -272,16 +303,18 @@ def get_base_inputs():
     score_them = int(document.getElementById("score_them").value)
     poss = document.getElementById("current_poss").value
     player = document.getElementById("active-player").value
+    level = document.getElementById("level").value
+    gender = document.getElementById("gender").value
     starting_server = 0 if poss == "us" else 1
-    return score_us, score_them, starting_server, player
+    return score_us, score_them, starting_server, player, level, gender
 
 def calculate_topspin(event):
-    score_us, score_them, starting_server, player = get_base_inputs()
+    score_us, score_them, starting_server, player, level, gender = get_base_inputs()
     pass_vs_ts = float(document.getElementById("opp_pass_vs_ts").value)
     ts_ace = float(document.getElementById("ts_ace").value)
     ts_err = float(document.getElementById("ts_err").value)
     
-    engine = VolleyballStabilizedEngine(pass_vs_ts)
+    engine = VolleyballStabilizedEngine(level, gender, pass_vs_ts)
     p_pt = engine.get_point_win_probability(ts_ace, ts_err)
     final_avg = engine.run_stabilized_average(score_us, score_them, starting_server, p_pt)
     
@@ -290,12 +323,12 @@ def calculate_topspin(event):
                                                       f"Averaged Set Win Expectancy: <span style='font-size:1.4rem; font-weight:bold;'>{round(final_avg * 100, 1)}%</span>"
 
 def calculate_float(event):
-    score_us, score_them, starting_server, player = get_base_inputs()
+    score_us, score_them, starting_server, player, level, gender = get_base_inputs()
     pass_vs_fl = float(document.getElementById("opp_pass_vs_fl").value)
     fl_ace = float(document.getElementById("fl_ace").value)
     fl_err = float(document.getElementById("fl_err").value)
     
-    engine = VolleyballStabilizedEngine(pass_vs_fl)
+    engine = VolleyballStabilizedEngine(level, gender, pass_vs_fl)
     p_pt = engine.get_point_win_probability(fl_ace, fl_err)
     final_avg = engine.run_stabilized_average(score_us, score_them, starting_server, p_pt)
     
