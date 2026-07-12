@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Volleyball Serve Strategy Optimizer</title>
+    <title>Volleyball Strategy Dashboard</title>
     
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
@@ -14,18 +14,18 @@
             background-color: #f0f4f8;
             color: #333;
             margin: 0;
-            padding: 20px;
+            padding: 15px;
         }
         .container {
-            max-width: 750px;
+            max-width: 800px;
             margin: 0 auto;
             background: white;
-            padding: 25px;
-            border-radius: 10px;
+            padding: 20px;
+            border-radius: 12px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.08);
         }
-        h1 { color: #1e3a8a; text-align: center; margin-bottom: 5px; }
-        .subtitle { text-align: center; color: #666; margin-bottom: 25px; }
+        h1 { color: #1e3a8a; text-align: center; margin: 0 0 5px 0; font-size: 1.8rem; }
+        .subtitle { text-align: center; color: #666; margin-bottom: 20px; font-size: 0.95rem; }
         
         .section-title {
             font-size: 1.1rem;
@@ -33,93 +33,88 @@
             color: #1e3a8a;
             border-bottom: 2px solid #e2e8f0;
             padding-bottom: 5px;
-            margin-top: 20px;
-            margin-bottom: 15px;
-        }
-
-        .grid-2 {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
-
-        .input-group {
-            margin-bottom: 15px;
-        }
-        label {
-            display: block;
-            font-weight: 600;
-            margin-bottom: 5px;
-            font-size: 0.9rem;
-        }
-        input, select {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #cbd5e1;
-            border-radius: 5px;
-            box-sizing: border-box;
-            font-size: 0.95rem;
-        }
-
-        button {
-            width: 100%;
-            background-color: #2563eb;
-            color: white;
-            border: none;
-            padding: 12px;
-            font-size: 1rem;
-            font-weight: bold;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-top: 15px;
-            transition: background 0.2s;
-        }
-        button:hover { background-color: #1d4ed8; }
-
-        .result-box {
-            background-color: #f8fafc;
-            border: 1px solid #e2e8f0;
-            padding: 20px;
             margin-top: 25px;
-            border-radius: 8px;
-        }
-        
-        .recommendation-highlight {
-            background-color: #eff6ff;
-            border-left: 5px solid #3b82f6;
-            padding: 15px;
             margin-bottom: 15px;
-            border-radius: 4px;
-        }
-        
-        .rec-text {
-            font-size: 1.2rem;
-            font-weight: bold;
-            color: #1e3a8a;
         }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-            font-size: 0.9rem;
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+        .input-group { margin-bottom: 12px; }
+        label { display: block; font-weight: 600; margin-bottom: 4px; font-size: 0.85rem; color: #475569; }
+        input, select {
+            width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 0.95rem;
         }
-        th, td {
-            border: 1px solid #e2e8f0;
-            padding: 10px;
-            text-align: left;
+
+        /* Score Tracker Styling */
+        .score-box {
+            background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; text-align: center;
         }
+        .score-display { font-size: 2.5rem; font-weight: bold; color: #0f172a; margin: 5px 0; }
+        .btn-score {
+            background: #64748b; color: white; border: none; padding: 8px 16px; font-size: 1.1rem; font-weight: bold; border-radius: 5px; cursor: pointer; margin: 0 4px;
+        }
+        .btn-score:hover { background: #475569; }
+
+        /* Action Buttons */
+        .btn-primary {
+            width: 100%; background-color: #2563eb; color: white; border: none; padding: 12px; font-size: 1.1rem; font-weight: bold; border-radius: 6px; cursor: pointer; margin-top: 10px;
+        }
+        .btn-primary:hover { background-color: #1d4ed8; }
+        
+        .btn-secondary {
+            background-color: #10b981; color: white; border: none; padding: 8px; font-weight: bold; border-radius: 5px; cursor: pointer; width: 100%; margin-top: 22px;
+        }
+        .btn-secondary:hover { background-color: #059669; }
+
+        /* Dynamic Output */
+        .result-box { background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; margin-top: 20px; border-radius: 8px; }
+        .recommendation-highlight { background-color: #eff6ff; border-left: 5px solid #3b82f6; padding: 12px; margin-bottom: 15px; border-radius: 4px; }
+        .rec-text { font-size: 1.2rem; font-weight: bold; color: #1e3a8a; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85rem; }
+        th, td { border: 1px solid #e2e8f0; padding: 8px; text-align: left; }
         th { background-color: #f1f5f9; }
+        
+        .roster-list { max-height: 120px; overflow-y: auto; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px; margin-top: 10px; }
+        .roster-item { display: flex; justify-content: space-between; padding: 4px; font-size: 0.85rem; border-bottom: 1px solid #f1f5f9; }
+        .btn-delete { background: #ef4444; color: white; border: none; border-radius: 3px; padding: 2px 6px; cursor: pointer; font-size: 0.75rem; }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h1>🏐 Volleyball Serve Strategy Optimizer</h1>
-        <div class="subtitle">Live Mathematical Decision Model for Coaches</div>
+        <h1>🏐 Volleyball Strategy Dashboard</h1>
+        <div class="subtitle">Roster Management & Live In-Game Optimization Engine</div>
         
-        <div class="section-title">1. Game Settings</div>
-        <div class="grid-2">
+        <div class="section-title">1. Roster Management (Saves to Browser)</div>
+        <div class="grid-3">
+            <div class="input-group">
+                <label for="p_name">Player Name</label>
+                <input type="text" id="p_name" placeholder="e.g. Sarah">
+            </div>
+            <div class="input-group">
+                <label>Topspin (Ace / Err / Pass)</label>
+                <input type="text" id="p_ts" value="0.20, 0.25, 0.20" placeholder="0.20, 0.25, 0.20">
+            </div>
+            <div class="input-group">
+                <button class="btn-secondary" onclick="addPlayer()">Save Player</button>
+            </div>
+        </div>
+        <div class="grid-2" style="margin-top:-10px;">
+            <div class="input-group">
+                <label style="visibility:hidden;">Float Data label</label>
+                <small style="color:#666; display:block; margin-top:-5px;">Format: Ace, Error, Opponent Perfect Pass Rate</small>
+            </div>
+            <div class="input-group">
+                <label style="color:#475569;">Float (Ace / Err / Pass)</label>
+                <input type="text" id="p_fl" value="0.05, 0.05, 0.45" placeholder="0.05, 0.05, 0.45">
+            </div>
+        </div>
+        <div class="roster-list" id="roster-view"></div>
+
+        <div class="section-title">2. Game Settings & Active Server</div>
+        <div class="grid-3">
             <div class="input-group">
                 <label for="level">Match Level</label>
                 <select id="level">
@@ -135,78 +130,150 @@
                     <option value="Boys">Boys / Men</option>
                 </select>
             </div>
+            <div class="input-group">
+                <label for="active-player">Select Current Server</label>
+                <select id="active-player" onchange="loadActivePlayerStats()">
+                    </select>
+            </div>
         </div>
 
-        <div class="section-title">2. Current Score State</div>
+        <div class="section-title">3. Live Score Tracking</div>
         <div class="grid-2">
-            <div class="input-group">
-                <label for="score_us">Our Score (Serving)</label>
-                <input type="number" id="score_us" value="22" min="0" max="40">
+            <div class="score-box">
+                <label style="color:#2563eb; font-weight:bold;">OUR SCORE (SERVING)</label>
+                <div class="score-display" id="disp_us">22</div>
+                <button class="btn-score" onclick="adjustScore('us', 1)">+</button>
+                <button class="btn-score" onclick="adjustScore('us', -1)">-</button>
+                <input type="hidden" id="score_us" value="22">
             </div>
-            <div class="input-group">
-                <label for="score_them">Opponent Score</label>
-                <input type="number" id="score_them" value="23" min="0" max="40">
+            <div class="score-box">
+                <label style="color:#ef4444; font-weight:bold;">OPPONENT SCORE</label>
+                <div class="score-display" id="disp_them">23</div>
+                <button class="btn-score" onclick="adjustScore('them', 1)">+</button>
+                <button class="btn-score" onclick="adjustScore('them', -1)">-</button>
+                <input type="hidden" id="score_them" value="23">
             </div>
         </div>
 
-        <div class="section-title">3. Serve Execution Strategies (Use decimals: e.g., 0.15 = 15%)</div>
-        
-        <strong style="color: #2563eb;">Option 1: Topspin Serve</strong>
-        <div class="grid-2">
-            <div class="input-group">
-                <label for="ts_err">Missed Topspin Rate (Errors)</label>
-                <input type="number" id="ts_err" value="0.25" step="0.01" min="0" max="1">
-            </div>
-            <div class="input-group">
-                <label for="ts_ace">Topspin Ace Rate</label>
-                <input type="number" id="ts_ace" value="0.20" step="0.01" min="0" max="1">
-            </div>
-        </div>
-        <div class="input-group" style="margin-top:-10px;">
-            <label for="ts_perf">Opponent Perfect Pass Rate vs Topspin (In-System)</label>
-            <input type="number" id="ts_perf" value="0.20" step="0.01" min="0" max="1">
-        </div>
+        <input type="hidden" id="ts_ace" value="0.20">
+        <input type="hidden" id="ts_err" value="0.25">
+        <input type="hidden" id="ts_perf" value="0.20">
+        <input type="hidden" id="fl_ace" value="0.05">
+        <input type="hidden" id="fl_err" value="0.05">
+        <input type="hidden" id="fl_perf" value="0.45">
 
-        <strong style="color: #0d9488;">Option 2: Float Serve</strong>
-        <div class="grid-2">
-            <div class="input-group">
-                <label for="fl_err">Missed Float Rate (Errors)</label>
-                <input type="number" id="fl_err" value="0.05" step="0.01" min="0" max="1">
-            </div>
-            <div class="input-group">
-                <label for="fl_ace">Float Ace Rate</label>
-                <input type="number" id="fl_ace" value="0.05" step="0.01" min="0" max="1">
-            </div>
-        </div>
-        <div class="input-group" style="margin-top:-10px;">
-            <label for="fl_perf">Opponent Perfect Pass Rate vs Float (In-System)</label>
-            <input type="number" id="fl_perf" value="0.45" step="0.01" min="0" max="1">
-        </div>
-
-        <button id="calc-btn" py-click="run_optimization">Calculate Optimal Strategy</button>
+        <button id="calc-btn" class="btn-primary" py-click="run_optimization">Run Strategy Engine</button>
 
         <div class="result-box">
-            <div class="section-title" style="margin-top:0;">Optimized Tactical Report</div>
+            <div class="section-title" style="margin-top:0; border-bottom:1px solid #cbd5e1;">Live Optimized Tactical Report</div>
             <div id="output-rec" class="recommendation-highlight">
-                Fill out the metrics above and click calculate.
+                Select a player, track the score, and hit run strategy engine.
             </div>
             
-            <table id="data-table">
+            <table>
                 <thead>
                     <tr>
-                        <th>Serve Type</th>
-                        <th>Rally Win Prob.</th>
+                        <th>Serve Type Options</th>
+                        <th>Rally Win Probability</th>
                         <th>Set Win Expectancy</th>
                     </tr>
                 </thead>
                 <tbody id="table-body">
                     <tr>
-                        <td colspan="3" style="text-align:center; color:#94a3b8;">No active calculations</td>
+                        <td colspan="3" style="text-align:center; color:#94a3b8;">Awaiting optimization sequence...</td>
                     </tr>
                 </tbody>
             </table>
         </div>
     </div>
+
+    <script>
+        // Seed database if empty
+        let defaultRoster = {
+            "Default Server": { ts: [0.20, 0.25, 0.20], fl: [0.05, 0.05, 0.45] }
+        };
+        
+        function getRoster() {
+            let data = localStorage.getItem("vb_roster");
+            return data ? JSON.parse(data) : defaultRoster;
+        }
+
+        function saveRoster(roster) {
+            localStorage.setItem("vb_roster", JSON.stringify(roster));
+            updateRosterUI();
+        }
+
+        function addPlayer() {
+            let name = document.getElementById("p_name").value.trim();
+            let tsData = document.getElementById("p_ts").value.split(",").map(Number);
+            let flData = document.getElementById("p_fl").value.split(",").map(Number);
+            
+            if(!name || tsData.length !== 3 || flData.length !== 3) {
+                alert("Please verify all data layouts are correct.");
+                return;
+            }
+            
+            let roster = getRoster();
+            roster[name] = { ts: tsData, fl: flData };
+            saveRoster(roster);
+            document.getElementById("p_name").value = "";
+        }
+
+        function deletePlayer(name) {
+            let roster = getRoster();
+            delete roster[name];
+            saveRoster(roster);
+        }
+
+        function adjustScore(team, val) {
+            let elem = document.getElementById("score_" + team);
+            let disp = document.getElementById("disp_" + team);
+            let newVal = Math.max(0, parseInt(elem.value) + val);
+            elem.value = newVal;
+            disp.innerText = newVal;
+        }
+
+        function loadActivePlayerStats() {
+            let selected = document.getElementById("active-player").value;
+            let roster = getRoster();
+            let p = roster[selected];
+            if(p) {
+                document.getElementById("ts_ace").value = p.ts[0];
+                document.getElementById("ts_err").value = p.ts[1];
+                document.getElementById("ts_perf").value = p.ts[2];
+                document.getElementById("fl_ace").value = p.fl[0];
+                document.getElementById("fl_err").value = p.fl[1];
+                document.getElementById("fl_perf").value = p.fl[2];
+            }
+        }
+
+        function updateRosterUI() {
+            let roster = getRoster();
+            let select = document.getElementById("active-player");
+            let list = document.getElementById("roster-view");
+            
+            select.innerHTML = "";
+            list.innerHTML = "";
+            
+            for(let p in roster) {
+                // Populate interactive active selector dropdown
+                let opt = document.createElement("option");
+                opt.value = p; opt.innerText = p;
+                select.appendChild(opt);
+                
+                // Populate visual list manager
+                let item = document.createElement("div");
+                item.className = "roster-item";
+                item.innerHTML = `<span><strong>${p}</strong> | TS Ace: ${roster[p].ts[0]*100}% | FL Ace: ${roster[p].fl[0]*100}%</span>
+                                  <button class="btn-delete" onclick="deletePlayer('${p}')">X</button>`;
+                list.appendChild(item);
+            }
+            loadActivePlayerStats();
+        }
+
+        // Initialize display rules on startup
+        window.onload = updateRosterUI;
+    </script>
 
     <script type="py">
 from pyscript import document
@@ -230,82 +297,53 @@ class VolleyballMatchSimulator:
 
     def calculate_point_win_probability(self, ace, error, perfect_pass):
         p_in = 1.0 - (ace + error)
-        if p_in <= 0: 
-            return ace
-
-        opp_kill_in_sys = self.base_rates['in_system']
-        opp_kill_out_sys = self.base_rates['out_system']
-
-        opp_efficiency = (perfect_pass * opp_kill_in_sys) + ((1.0 - perfect_pass) * opp_kill_out_sys)
-        p_we_win_rally = 1.0 - opp_efficiency
-
-        return ace + (p_in * p_we_win_rally)
+        if p_in <= 0: return ace
+        opp_efficiency = (perfect_pass * self.base_rates['in_system']) + ((1.0 - perfect_pass) * self.base_rates['out_system'])
+        return ace + (p_in * (1.0 - opp_efficiency))
 
     def compute_set_win_expectancy(self, score_us, score_them, p_win_point, memo=None):
         if memo is None: memo = {}
         state = (score_us, score_them)
         if state in memo: return memo[state]
-
         if score_us >= 25 and (score_us - score_them) >= 2: return 1.0
         if score_them >= 25 and (score_them - score_us) >= 2: return 0.0
-        
         if score_us > 35 or score_them > 35:
             return 0.5 if score_us == score_them else (1.0 if score_us > score_them else 0.0)
-
-        prob_if_we_win_point = self.compute_set_win_expectancy(score_us + 1, score_them, p_win_point, memo)
-        prob_if_we_lose_point = self.compute_set_win_expectancy(score_us, score_them + 1, p_win_point, memo)
-        
-        win_expectancy = (p_win_point * prob_if_we_win_point) + ((1 - p_win_point) * prob_if_we_lose_point)
-        memo[state] = win_expectancy
-        return win_expectancy
+        prob_we_win = self.compute_set_win_expectancy(score_us + 1, score_them, p_win_point, memo)
+        prob_we_lose = self.compute_set_win_expectancy(score_us, score_them + 1, p_win_point, memo)
+        memo[state] = (p_win_point * prob_we_win) + ((1.0 - p_win_point) * prob_we_lose)
+        return memo[state]
 
 def run_optimization(event):
     level = document.getElementById("level").value
     gender = document.getElementById("gender").value
     score_us = int(document.getElementById("score_us").value)
     score_them = int(document.getElementById("score_them").value)
+    player = document.getElementById("active-player").value
 
-    # Topspin inputs
     ts_ace = float(document.getElementById("ts_ace").value)
     ts_err = float(document.getElementById("ts_err").value)
     ts_perf = float(document.getElementById("ts_perf").value)
 
-    # Float inputs
     fl_ace = float(document.getElementById("fl_ace").value)
     fl_err = float(document.getElementById("fl_err").value)
     fl_perf = float(document.getElementById("fl_perf").value)
 
     sim = VolleyballMatchSimulator(level, gender)
-    
-    p_point_ts = sim.calculate_point_win_probability(ts_ace, ts_err, ts_perf)
-    p_set_ts = sim.compute_set_win_expectancy(score_us, score_them, p_point_ts)
+    p_pt_ts = sim.calculate_point_win_probability(ts_ace, ts_err, ts_perf)
+    p_set_ts = sim.compute_set_win_expectancy(score_us, score_them, p_pt_ts)
 
-    p_point_fl = sim.calculate_point_win_probability(fl_ace, fl_err, fl_perf)
-    p_set_fl = sim.compute_set_win_expectancy(score_us, score_them, p_point_fl)
+    p_pt_fl = sim.calculate_point_win_probability(fl_ace, fl_err, fl_perf)
+    p_set_fl = sim.compute_set_win_expectancy(score_us, score_them, p_pt_fl)
 
-    if p_set_ts >= p_set_fl:
-        best_strat = "Topspin Serve"
-        best_prob = p_set_ts
-    else:
-        best_strat = "Float Serve"
-        best_prob = p_set_fl
+    best_strat, best_prob = ("Topspin Serve", p_set_ts) if p_set_ts >= p_set_fl else ("Float Serve", p_set_fl)
 
-    rec_div = document.getElementById("output-rec")
-    rec_div.innerHTML = f"<div class='rec-text'>Recommended Option: {best_strat}</div>" \
-                        f"Executing this choice grants your team a <strong>{round(best_prob * 100, 1)}%</strong> overall likelihood to secure the set win."
+    document.getElementById("output-rec").innerHTML = f"<div class='rec-text'>Target Strategy for {player}: {best_strat}</div>" \
+                                                      f"Deploying this optimized serve state gives you a <strong>{round(best_prob * 100, 1)}%</strong> probability to secure the set."
 
-    table_body = document.getElementById("table-body")
-    table_body.innerHTML = f"""
-        <tr>
-            <td><strong>Topspin Serve</strong></td>
-            <td>{round(p_point_ts * 100, 1)}%</td>
-            <td>{round(p_set_ts * 100, 1)}%</td>
-        </tr>
-        <tr>
-            <td><strong>Float Serve</strong></td>
-            <td>{round(p_point_fl * 100, 1)}%</td>
-            <td>{round(p_set_fl * 100, 1)}%</td>
-        </tr>
+    document.getElementById("table-body").innerHTML = f"""
+        <tr><td><strong>Topspin Serve</strong></td><td>{round(p_pt_ts * 100, 1)}%</td><td>{round(p_set_ts * 100, 1)}%</td></tr>
+        <tr><td><strong>Float Serve</strong></td><td>{round(p_pt_fl * 100, 1)}%</td><td>{round(p_set_fl * 100, 1)}%</td></tr>
     """
     </script>
 </body>
