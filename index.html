@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Volleyball Serve Optimizer</title>
+    <title>Volleyball Serve Strategy Optimizer</title>
     
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
@@ -11,49 +11,206 @@
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f4f6f9;
+            background-color: #f0f4f8;
             color: #333;
             margin: 0;
             padding: 20px;
         }
         .container {
-            max-width: 600px;
+            max-width: 750px;
             margin: 0 auto;
             background: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
         }
-        h1 { color: #1e3a8a; margin-top: 0; }
+        h1 { color: #1e3a8a; text-align: center; margin-bottom: 5px; }
+        .subtitle { text-align: center; color: #666; margin-bottom: 25px; }
+        
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #1e3a8a;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 5px;
+            margin-top: 20px;
+            margin-bottom: 15px;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #cbd5e1;
+            border-radius: 5px;
+            box-sizing: border-box;
+            font-size: 0.95rem;
+        }
+
+        button {
+            width: 100%;
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            padding: 12px;
+            font-size: 1rem;
+            font-weight: bold;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: background 0.2s;
+        }
+        button:hover { background-color: #1d4ed8; }
+
         .result-box {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            padding: 20px;
+            margin-top: 25px;
+            border-radius: 8px;
+        }
+        
+        .recommendation-highlight {
             background-color: #eff6ff;
             border-left: 5px solid #3b82f6;
             padding: 15px;
-            margin-top: 20px;
+            margin-bottom: 15px;
             border-radius: 4px;
         }
-        .strategy {
+        
+        .rec-text {
+            font-size: 1.2rem;
             font-weight: bold;
-            color: #2563eb;
+            color: #1e3a8a;
         }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 0.9rem;
+        }
+        th, td {
+            border: 1px solid #e2e8f0;
+            padding: 10px;
+            text-align: left;
+        }
+        th { background-color: #f1f5f9; }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h1>🏐 Volleyball Serve Optimizer</h1>
-        <p>Running the optimization algorithm live from your Python script...</p>
+        <h1>🏐 Volleyball Serve Strategy Optimizer</h1>
+        <div class="subtitle">Live Mathematical Decision Model for Coaches</div>
         
+        <div class="section-title">1. Game Settings</div>
+        <div class="grid-2">
+            <div class="input-group">
+                <label for="level">Match Level</label>
+                <select id="level">
+                    <option value="High School">High School</option>
+                    <option value="College">College</option>
+                    <option value="Pro">Professional</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label for="gender">Gender</label>
+                <select id="gender">
+                    <option value="Girls">Girls / Women</option>
+                    <option value="Boys">Boys / Men</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="section-title">2. Current Score State</div>
+        <div class="grid-2">
+            <div class="input-group">
+                <label for="score_us">Our Score (Serving)</label>
+                <input type="number" id="score_us" value="22" min="0" max="40">
+            </div>
+            <div class="input-group">
+                <label for="score_them">Opponent Score</label>
+                <input type="number" id="score_them" value="23" min="0" max="40">
+            </div>
+        </div>
+
+        <div class="section-title">3. Serve Execution Strategies (Input % as decimals, e.g., 0.15 = 15%)</div>
+        
+        <strong>Strategy A: Aggressive/High-Risk Serve</strong>
+        <div class="grid-2">
+            <div class="input-group">
+                <label for="a_err">Missed Serve Rate (Errors)</label>
+                <input type="number" id="a_err" value="0.25" step="0.01" min="0" max="1">
+            </div>
+            <div class="input-group">
+                <label for="a_ace">Ace Rate</label>
+                <input type="number" id="a_ace" value="0.20" step="0.01" min="0" max="1">
+            </div>
+        </div>
+        <div class="input-group" style="margin-top:-10px;">
+            <label for="a_perf">Opponent Perfect Pass Rate (In-System)</label>
+            <input type="number" id="a_perf" value="0.20" step="0.01" min="0" max="1">
+        </div>
+
+        <strong>Strategy B: Tactical/Safe Serve</strong>
+        <div class="grid-2">
+            <div class="input-group">
+                <label for="b_err">Missed Serve Rate (Errors)</label>
+                <input type="number" id="b_err" value="0.05" step="0.01" min="0" max="1">
+            </div>
+            <div class="input-group">
+                <label for="b_ace">Ace Rate</label>
+                <input type="number" id="b_ace" value="0.05" step="0.01" min="0" max="1">
+            </div>
+        </div>
+        <div class="input-group" style="margin-top:-10px;">
+            <label for="b_perf">Opponent Perfect Pass Rate (In-System)</label>
+            <input type="number" id="b_perf" value="0.50" step="0.01" min="0" max="1">
+        </div>
+
+        <button id="calc-btn" py-click="run_optimization">Calculate Optimal Strategy</button>
+
         <div class="result-box">
-            <h3>Coach's Live Recommendation:</h3>
-            <div id="output">Loading algorithm...</div>
+            <div class="section-title" style="margin-top:0;">Optimized Tactical Report</div>
+            <div id="output-rec" class="recommendation-highlight">
+                Fill out the metrics above and click calculate.
+            </div>
+            
+            <table id="data-table">
+                <thead>
+                    <tr>
+                        <th>Strategy Option</th>
+                        <th>Rally Win Prob.</th>
+                        <th>Set Win Expectancy</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                    <tr>
+                        <td colspan="3" style="text-align:center; color:#94a3b8;">No active calculations</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     </div>
 
     <script type="py">
-import json
+from pyscript import document
 
-# Your exact algorithm code
 class VolleyballMatchSimulator:
     def __init__(self, level, gender):
         self.level = level
@@ -62,23 +219,28 @@ class VolleyballMatchSimulator:
 
     def _get_baseline_rates(self):
         transitions = {
+            ('Pro', 'Boys'): {'in_system': 0.64, 'out_system': 0.38},
+            ('Pro', 'Girls'): {'in_system': 0.52, 'out_system': 0.28},
+            ('College', 'Boys'): {'in_system': 0.58, 'out_system': 0.34},
+            ('College', 'Girls'): {'in_system': 0.46, 'out_system': 0.24},
+            ('High School', 'Boys'): {'in_system': 0.50, 'out_system': 0.28},
             ('High School', 'Girls'): {'in_system': 0.38, 'out_system': 0.16}
         }
         return transitions.get((self.level, self.gender), {'in_system': 0.45, 'out_system': 0.25})
 
-    def calculate_point_win_probability(self, serve_stats):
-        p_ace = serve_stats['ace_rate']
-        p_error = serve_stats['error_rate']
-        p_in = 1.0 - (p_ace + p_error)
-        
-        if p_in <= 0: return p_ace
+    def calculate_point_win_probability(self, ace, error, perfect_pass):
+        p_in = 1.0 - (ace + error)
+        if p_in <= 0: 
+            return ace
 
-        p_perfect_pass = serve_stats['opp_perfect_pass_rate']
         opp_kill_in_sys = self.base_rates['in_system']
         opp_kill_out_sys = self.base_rates['out_system']
 
-        opp_efficiency_weighted = (p_perfect_pass * opp_kill_in_sys) + ((1 - p_perfect_pass) * opp_kill_out_sys)
-        return p_ace + (p_in * (1.0 - opp_efficiency_weighted))
+        # Weighted calculation of opponent scoring when ball is put in play
+        opp_efficiency = (perfect_pass * opp_kill_in_sys) + ((1.0 - perfect_pass) * opp_kill_out_sys)
+        p_we_win_rally = 1.0 - opp_efficiency
+
+        return ace + (p_in * p_we_win_rally)
 
     def compute_set_win_expectancy(self, score_us, score_them, p_win_point, memo=None):
         if memo is None: memo = {}
@@ -87,7 +249,8 @@ class VolleyballMatchSimulator:
 
         if score_us >= 25 and (score_us - score_them) >= 2: return 1.0
         if score_them >= 25 and (score_them - score_us) >= 2: return 0.0
-        if score_us > 30 or score_them > 30:
+        
+        if score_us > 35 or score_them > 35:
             return 0.5 if score_us == score_them else (1.0 if score_us > score_them else 0.0)
 
         prob_if_we_win_point = self.compute_set_win_expectancy(score_us + 1, score_them, p_win_point, memo)
@@ -97,30 +260,58 @@ class VolleyballMatchSimulator:
         memo[state] = win_expectancy
         return win_expectancy
 
-# Run the simulation right now for the website display
-coach_simulator = VolleyballMatchSimulator(level="High School", gender="Girls")
-player_serve_matrix = {
-    "Aggressive Jump Float (Zone 1)": {"ace_rate": 0.12, "error_rate": 0.06, "opp_perfect_pass_rate": 0.25},
-    "High-Risk Jump Spin (Zone 6)": {"ace_rate": 0.22, "error_rate": 0.26, "opp_perfect_pass_rate": 0.15},
-    "Safe Standing Float (Target Weak Passer)": {"ace_rate": 0.04, "error_rate": 0.02, "opp_perfect_pass_rate": 0.45}
-}
+def run_optimization(event):
+    # 1. Grab inputs from DOM elements
+    level = document.getElementById("level").value
+    gender = document.getElementById("gender").value
+    score_us = int(document.getElementById("score_us").value)
+    score_them = int(document.getElementById("score_them").value)
 
-# Evaluate at score 22-23
-best_strategy = None
-max_set_win_prob = -1.0
+    # Strategy A metrics
+    a_ace = float(document.getElementById("a_ace").value)
+    a_err = float(document.getElementById("a_err").value)
+    a_perf = float(document.getElementById("a_perf").value)
 
-for strategy_name, stats in player_serve_matrix.items():
-    p_point = coach_simulator.calculate_point_win_probability(stats)
-    p_set = coach_simulator.compute_set_win_expectancy(22, 23, p_point)
-    if p_set > max_set_win_prob:
-        max_set_win_prob = p_set
-        best_strategy = strategy_name
+    # Strategy B metrics
+    b_ace = float(document.getElementById("b_ace").value)
+    b_err = float(document.getElementById("b_err").value)
+    b_perf = float(document.getElementById("b_perf").value)
 
-# Target the HTML element on the page and change its text using Python!
-from pyscript import display
-output_text = f"At Score 22-23, the mathematical model recommends: <br><br><span class='strategy'>{best_strategy}</span><br><br>This gives your team a {round(max_set_win_prob * 100, 1)}% chance of winning the set."
-display(output_text, target="output", append=False)
+    # 2. Run background simulation calculations
+    sim = VolleyballMatchSimulator(level, gender)
+    
+    p_point_a = sim.calculate_point_win_probability(a_ace, a_err, a_perf)
+    p_set_a = sim.compute_set_win_expectancy(score_us, score_them, p_point_a)
+
+    p_point_b = sim.calculate_point_win_probability(b_ace, b_err, b_perf)
+    p_set_b = sim.compute_set_win_expectancy(score_us, score_them, p_point_b)
+
+    # 3. Determine best outcome choice
+    if p_set_a >= p_set_b:
+        best_strat = "Strategy A (Aggressive / High-Risk)"
+        best_prob = p_set_a
+    else:
+        best_strat = "Strategy B (Tactical / Safe)"
+        best_prob = p_set_b
+
+    # 4. Push results directly back to the visual HTML interface
+    rec_div = document.getElementById("output-rec")
+    rec_div.innerHTML = f"<div class='rec-text'>Recommended: {best_strat}</div>" \
+                        f"Choosing this strategy yields a <strong>{round(best_prob * 100, 1)}%</strong> overall chance to win this set."
+
+    table_body = document.getElementById("table-body")
+    table_body.innerHTML = f"""
+        <tr>
+            <td><strong>Strategy A (Aggressive)</strong></td>
+            <td>{round(p_point_a * 100, 1)}%</td>
+            <td>{round(p_set_a * 100, 1)}%</td>
+        </tr>
+        <tr>
+            <td><strong>Strategy B (Tactical/Safe)</strong></td>
+            <td>{round(p_point_b * 100, 1)}%</td>
+            <td>{round(p_set_b * 100, 1)}%</td>
+        </tr>
+    """
     </script>
-
 </body>
 </html>
