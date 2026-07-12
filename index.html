@@ -131,27 +131,34 @@
                 </select>
             </div>
             <div class="input-group">
-                <label for="active-player">Select Current Server</label>
+                <label for="active-player">Select Our Server</label>
                 <select id="active-player" onchange="loadActivePlayerStats()">
                     </select>
             </div>
         </div>
 
-        <div class="section-title">3. Live Score Tracking</div>
+        <div class="section-title">3. Live Score & Possession Tracking</div>
+        <div class="input-group">
+            <label for="current_poss">Who is Serving Right Now?</label>
+            <select id="current_poss" style="background-color: #fffbeb; font-weight: bold; border: 2px solid #f59e0b;">
+                <option value="us">We Are Serving (Our Team)</option>
+                <option value="them">Opponent Is Serving</option>
+            </select>
+        </div>
         <div class="grid-2">
             <div class="score-box">
                 <label style="color:#2563eb; font-weight:bold;">OUR SCORE</label>
-                <div class="score-display" id="disp_us">22</div>
+                <div class="score-display" id="disp_us">9</div>
                 <button class="btn-score" onclick="adjustScore('us', 1)">+</button>
                 <button class="btn-score" onclick="adjustScore('us', -1)">-</button>
-                <input type="hidden" id="score_us" value="22">
+                <input type="hidden" id="score_us" value="9">
             </div>
             <div class="score-box">
                 <label style="color:#ef4444; font-weight:bold;">OPPONENT SCORE</label>
-                <div class="score-display" id="disp_them">23</div>
+                <div class="score-display" id="disp_them">15</div>
                 <button class="btn-score" onclick="adjustScore('them', 1)">+</button>
                 <button class="btn-score" onclick="adjustScore('them', -1)">-</button>
-                <input type="hidden" id="score_them" value="23">
+                <input type="hidden" id="score_them" value="15">
             </div>
         </div>
 
@@ -167,15 +174,15 @@
         <div class="result-box">
             <div class="section-title" style="margin-top:0; border-bottom:1px solid #cbd5e1;">Live Optimized Tactical Report</div>
             <div id="output-rec" class="recommendation-highlight">
-                Select a player, track the score, and hit run strategy engine.
+                Select parameters and hit the engine button.
             </div>
             
             <table>
                 <thead>
                     <tr>
                         <th>Serve Type Options</th>
-                        <th>Rally Win Probability (This Point)</th>
-                        <th>Set Win Expectancy</th>
+                        <th>Rally Win Probability (On Our Serve Turn)</th>
+                        <th>Set Win Expectancy (From Current State)</th>
                     </tr>
                 </thead>
                 <tbody id="table-body">
@@ -279,7 +286,6 @@ class VolleyballMatchSimulator:
         self.level = level
         self.gender = gender
         self.base_rates = self._get_baseline_rates()
-        # Side-out baseline fallback: side-out rate when RECEIVING the opponent serve
         self.p_receive_sideout = self._get_receive_sideout_rate()
 
     def _get_baseline_rates(self):
@@ -294,7 +300,6 @@ class VolleyballMatchSimulator:
         return transitions.get((self.level, self.gender), {'in_system': 0.45, 'out_system': 0.25})
 
     def _get_receive_sideout_rate(self):
-        # High level men sideout easily; lower level girls sideout less on base serve receive
         rates = {
             ('Pro', 'Boys'): 0.65, ('Pro', 'Girls'): 0.56,
             ('College', 'Boys'): 0.60, ('College', 'Girls'): 0.50,
@@ -309,30 +314,22 @@ class VolleyballMatchSimulator:
         return ace + (p_in * (1.0 - opp_efficiency))
 
     def compute_set_win_expectancy(self, score_us, score_them, serving_team, p_win_serve, memo=None):
-        """
-        True Markov Chain: tracks score_us, score_them AND who is currently serving (0 = us, 1 = them).
-        """
         if memo is None: memo = {}
         state = (score_us, score_them, serving_team)
         if state in memo: return memo[state]
         
-        # Win conditions
         if score_us >= 25 and (score_us - score_them) >= 2: return 1.0
         if score_them >= 25 and (score_them - score_us) >= 2: return 0.0
         
-        # Max cap safety net
         if score_us > 35 or score_them > 35:
             return 0.5 if score_us == score_them else (1.0 if score_us > score_them else 0.0)
 
-        # Dynamic check of who is handling the serve transition
         if serving_team == 0:  # We are serving
             p_win_pt = p_win_serve
-            # If we win, we stay serving. If we lose, they side-out and serve.
             prob_if_we_win = self.compute_set_win_expectancy(score_us + 1, score_them, 0, p_win_serve, memo)
             prob_if_we_lose = self.compute_set_win_expectancy(score_us, score_them + 1, 1, p_win_serve, memo)
         else:                  # They are serving
             p_win_pt = self.p_receive_sideout
-            # If we win, we side-out and take over serving. If we lose, they keep serving.
             prob_if_we_win = self.compute_set_win_expectancy(score_us + 1, score_them, 0, p_win_serve, memo)
             prob_if_we_lose = self.compute_set_win_expectancy(score_us, score_them + 1, 1, p_win_serve, memo)
 
@@ -344,7 +341,11 @@ def run_optimization(event):
     gender = document.getElementById("gender").value
     score_us = int(document.getElementById("score_us").value)
     score_them = int(document.getElementById("score_them").value)
+    poss = document.getElementById("current_poss").value
     player = document.getElementById("active-player").value
+
+    # Convert frontend select state into integer index (0 = us, 1 = them)
+    starting_server = 0 if poss == "us" else 1
 
     ts_ace = float(document.getElementById("ts_ace").value)
     ts_err = float(document.getElementById("ts_err").value)
@@ -356,16 +357,13 @@ def run_optimization(event):
 
     sim = VolleyballMatchSimulator(level, gender)
     
-    # Calculate point metrics
     p_pt_ts = sim.calculate_point_win_probability(ts_ace, ts_err, ts_perf)
-    p_set_ts = sim.compute_set_win_expectancy(score_us, score_them, 0, p_pt_ts)
+    p_set_ts = sim.compute_set_win_expectancy(score_us, score_them, starting_server, p_pt_ts)
 
     p_pt_fl = sim.calculate_point_win_probability(fl_ace, fl_err, fl_perf)
-    p_set_fl = sim.compute_set_win_expectancy(score_us, score_them, 0, p_pt_fl)
+    p_set_fl = sim.compute_set_win_expectancy(score_us, score_them, starting_server, p_pt_fl)
 
-    # Establish safety limits requested by coach (min 0.1%, max 99.9% unless set over)
     is_over = (score_us >= 25 or score_them >= 25) and abs(score_us - score_them) >= 2
-    
     if not is_over:
         p_set_ts = max(0.001, min(0.999, p_set_ts))
         p_set_fl = max(0.001, min(0.999, p_set_fl))
@@ -373,7 +371,7 @@ def run_optimization(event):
     best_strat, best_prob = ("Topspin Serve", p_set_ts) if p_set_ts >= p_set_fl else ("Float Serve", p_set_fl)
 
     document.getElementById("output-rec").innerHTML = f"<div class='rec-text'>Target Strategy for {player}: {best_strat}</div>" \
-                                                      f"Deploying this optimized serve state gives you a <strong>{round(best_prob * 100, 1)}%</strong> probability to secure the set."
+                                                      f"Deploying this optimized serve state gives your team a <strong>{round(best_prob * 100, 1)}%</strong> probability to secure the set."
 
     document.getElementById("table-body").innerHTML = f"""
         <tr><td><strong>Topspin Serve</strong></td><td>{round(p_pt_ts * 100, 1)}%</td><td>{round(p_set_ts * 100, 1)}%</td></tr>
