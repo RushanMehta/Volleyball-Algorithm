@@ -140,7 +140,7 @@
         <div class="section-title">3. Live Score Tracking</div>
         <div class="grid-2">
             <div class="score-box">
-                <label style="color:#2563eb; font-weight:bold;">OUR SCORE (SERVING)</label>
+                <label style="color:#2563eb; font-weight:bold;">OUR SCORE</label>
                 <div class="score-display" id="disp_us">22</div>
                 <button class="btn-score" onclick="adjustScore('us', 1)">+</button>
                 <button class="btn-score" onclick="adjustScore('us', -1)">-</button>
@@ -174,7 +174,7 @@
                 <thead>
                     <tr>
                         <th>Serve Type Options</th>
-                        <th>Rally Win Probability</th>
+                        <th>Rally Win Probability (This Point)</th>
                         <th>Set Win Expectancy</th>
                     </tr>
                 </thead>
@@ -188,7 +188,6 @@
     </div>
 
     <script>
-        // Seed database if empty
         let defaultRoster = {
             "Default Server": { ts: [0.20, 0.25, 0.20], fl: [0.05, 0.05, 0.45] }
         };
@@ -256,12 +255,10 @@
             list.innerHTML = "";
             
             for(let p in roster) {
-                // Populate interactive active selector dropdown
                 let opt = document.createElement("option");
                 opt.value = p; opt.innerText = p;
                 select.appendChild(opt);
                 
-                // Populate visual list manager
                 let item = document.createElement("div");
                 item.className = "roster-item";
                 item.innerHTML = `<span><strong>${p}</strong> | TS Ace: ${roster[p].ts[0]*100}% | FL Ace: ${roster[p].fl[0]*100}%</span>
@@ -271,7 +268,6 @@
             loadActivePlayerStats();
         }
 
-        // Initialize display rules on startup
         window.onload = updateRosterUI;
     </script>
 
@@ -283,6 +279,8 @@ class VolleyballMatchSimulator:
         self.level = level
         self.gender = gender
         self.base_rates = self._get_baseline_rates()
+        # Side-out baseline fallback: side-out rate when RECEIVING the opponent serve
+        self.p_receive_sideout = self._get_receive_sideout_rate()
 
     def _get_baseline_rates(self):
         transitions = {
@@ -295,23 +293,50 @@ class VolleyballMatchSimulator:
         }
         return transitions.get((self.level, self.gender), {'in_system': 0.45, 'out_system': 0.25})
 
+    def _get_receive_sideout_rate(self):
+        # High level men sideout easily; lower level girls sideout less on base serve receive
+        rates = {
+            ('Pro', 'Boys'): 0.65, ('Pro', 'Girls'): 0.56,
+            ('College', 'Boys'): 0.60, ('College', 'Girls'): 0.50,
+            ('High School', 'Boys'): 0.52, ('High School', 'Girls'): 0.44
+        }
+        return rates.get((self.level, self.gender), 0.50)
+
     def calculate_point_win_probability(self, ace, error, perfect_pass):
         p_in = 1.0 - (ace + error)
         if p_in <= 0: return ace
         opp_efficiency = (perfect_pass * self.base_rates['in_system']) + ((1.0 - perfect_pass) * self.base_rates['out_system'])
         return ace + (p_in * (1.0 - opp_efficiency))
 
-    def compute_set_win_expectancy(self, score_us, score_them, p_win_point, memo=None):
+    def compute_set_win_expectancy(self, score_us, score_them, serving_team, p_win_serve, memo=None):
+        """
+        True Markov Chain: tracks score_us, score_them AND who is currently serving (0 = us, 1 = them).
+        """
         if memo is None: memo = {}
-        state = (score_us, score_them)
+        state = (score_us, score_them, serving_team)
         if state in memo: return memo[state]
+        
+        # Win conditions
         if score_us >= 25 and (score_us - score_them) >= 2: return 1.0
         if score_them >= 25 and (score_them - score_us) >= 2: return 0.0
+        
+        # Max cap safety net
         if score_us > 35 or score_them > 35:
             return 0.5 if score_us == score_them else (1.0 if score_us > score_them else 0.0)
-        prob_we_win = self.compute_set_win_expectancy(score_us + 1, score_them, p_win_point, memo)
-        prob_we_lose = self.compute_set_win_expectancy(score_us, score_them + 1, p_win_point, memo)
-        memo[state] = (p_win_point * prob_we_win) + ((1.0 - p_win_point) * prob_we_lose)
+
+        # Dynamic check of who is handling the serve transition
+        if serving_team == 0:  # We are serving
+            p_win_pt = p_win_serve
+            # If we win, we stay serving. If we lose, they side-out and serve.
+            prob_if_we_win = self.compute_set_win_expectancy(score_us + 1, score_them, 0, p_win_serve, memo)
+            prob_if_we_lose = self.compute_set_win_expectancy(score_us, score_them + 1, 1, p_win_serve, memo)
+        else:                  # They are serving
+            p_win_pt = self.p_receive_sideout
+            # If we win, we side-out and take over serving. If we lose, they keep serving.
+            prob_if_we_win = self.compute_set_win_expectancy(score_us + 1, score_them, 0, p_win_serve, memo)
+            prob_if_we_lose = self.compute_set_win_expectancy(score_us, score_them + 1, 1, p_win_serve, memo)
+
+        memo[state] = (p_win_pt * prob_if_we_win) + ((1.0 - p_win_pt) * prob_if_we_lose)
         return memo[state]
 
 def run_optimization(event):
@@ -330,11 +355,20 @@ def run_optimization(event):
     fl_perf = float(document.getElementById("fl_perf").value)
 
     sim = VolleyballMatchSimulator(level, gender)
+    
+    # Calculate point metrics
     p_pt_ts = sim.calculate_point_win_probability(ts_ace, ts_err, ts_perf)
-    p_set_ts = sim.compute_set_win_expectancy(score_us, score_them, p_pt_ts)
+    p_set_ts = sim.compute_set_win_expectancy(score_us, score_them, 0, p_pt_ts)
 
     p_pt_fl = sim.calculate_point_win_probability(fl_ace, fl_err, fl_perf)
-    p_set_fl = sim.compute_set_win_expectancy(score_us, score_them, p_pt_fl)
+    p_set_fl = sim.compute_set_win_expectancy(score_us, score_them, 0, p_pt_fl)
+
+    # Establish safety limits requested by coach (min 0.1%, max 99.9% unless set over)
+    is_over = (score_us >= 25 or score_them >= 25) and abs(score_us - score_them) >= 2
+    
+    if not is_over:
+        p_set_ts = max(0.001, min(0.999, p_set_ts))
+        p_set_fl = max(0.001, min(0.999, p_set_fl))
 
     best_strat, best_prob = ("Topspin Serve", p_set_ts) if p_set_ts >= p_set_fl else ("Float Serve", p_set_fl)
 
