@@ -43,7 +43,7 @@
 
     <div class="container">
         <h1>🏐 Volleyball Strategy Dashboard</h1>
-        <div class="subtitle">Stabilized In-Game Matrix Engine</div>
+        <div class="subtitle">Exact Analytical Dynamic Matrix Engine</div>
         
         <div class="section-title">1. Server Profiles (Saves to Browser)</div>
         <div class="grid-3">
@@ -119,17 +119,17 @@
         <div class="grid-2">
             <div class="score-box">
                 <label style="color:#2563eb; font-weight:bold;">OUR SCORE</label>
-                <div class="score-display" id="disp_us">9</div>
+                <div class="score-display" id="disp_us">16</div>
                 <button class="btn-score" onclick="adjustScore('us', 1)">+</button>
                 <button class="btn-score" onclick="adjustScore('us', -1)">-</button>
-                <input type="hidden" id="score_us" value="9">
+                <input type="hidden" id="score_us" value="16">
             </div>
             <div class="score-box">
                 <label style="color:#ef4444; font-weight:bold;">OPPONENT SCORE</label>
-                <div class="score-display" id="disp_them">15</div>
+                <div class="score-display" id="disp_them">16</div>
                 <button class="btn-score" onclick="adjustScore('them', 1)">+</button>
                 <button class="btn-score" onclick="adjustScore('them', -1)">-</button>
-                <input type="hidden" id="score_them" value="15">
+                <input type="hidden" id="score_them" value="16">
             </div>
         </div>
 
@@ -147,7 +147,7 @@
         <div class="result-box">
             <div class="section-title" style="margin-top:0; border-bottom:1px solid #cbd5e1;">Live Optimized Tactical Report</div>
             <div id="output-rec" class="recommendation-highlight">
-                Select parameters and tap a calculation strategy button above to see the stabilized forecast.
+                Select parameters and tap a calculation strategy button above to see the verified analytical matrix.
             </div>
         </div>
     </div>
@@ -236,17 +236,13 @@
 
     <script type="py">
 from pyscript import document
-import random
 
-class VolleyballStabilizedEngine:
+class VolleyballAnalyticalEngine:
     def __init__(self, level, gender, pass_rating):
         self.perfect_pass_rate = max(0.05, min(0.95, (pass_rating / 3.0)))
-        
-        # Load situational kill and sideout profiles based on competition metrics
         self.opp_kill_in_system, self.opp_kill_out_system, self.our_receive_sideout_rate = self._get_environmental_baselines(level, gender)
 
     def _get_environmental_baselines(self, level, gender):
-        # Structured Database: (In-System Kill, Out-of-System Kill, Our Base Side-Out)
         matrix = {
             ('Pro', 'Boys'): (0.64, 0.38, 0.65),
             ('Pro', 'Girls'): (0.54, 0.30, 0.56),
@@ -261,42 +257,43 @@ class VolleyballStabilizedEngine:
         p_in = 1.0 - (ace + error)
         if p_in <= 0: return ace
         
-        # Opponent efficiency driven directly by environmental parameters mapped against pass value
-        opp_efficiency = (self.perfect_pass_rate * self.opp_kill_in_system) + ((1.0 - self.perfect_pass_rate) * self.opp_kill_out_system)
-        return ace + (p_in * (1.0 - opp_efficiency))
-
-    def run_stabilized_average(self, start_us, start_them, start_serving, p_win_serve, iterations=1000):
-        random.seed(42)  # Fixed seed to lock calculations and eliminate statistical bounce
-        wins = 0
+        # Combined transition probability that opponent finishes rally on our serve
+        opp_rally_win_prob = (self.perfect_pass_rate * self.opp_kill_in_system) + ((1.0 - self.perfect_pass_rate) * self.opp_kill_out_system)
         
-        for _ in range(iterations):
-            score_us = start_us
-            score_them = start_them
-            serving_team = start_serving
+        # We win the point if we get an ace, OR if the ball goes in and the opponent fails to kill it
+        return ace + (p_in * (1.0 - opp_rally_win_prob))
+
+    def calculate_exact_set_expectancy(self, start_us, start_them, start_serving, p_win_serve):
+        """
+        Uses explicit backward induction recursion to map out the exact mathematical probability space.
+        """
+        memo = {}
+
+        def dp(s_us, s_them, server):
+            state = (s_us, s_them, server)
+            if state in memo:
+                return memo[state]
+
+            # Standard Win / Loss conditions
+            if s_us >= 25 and (s_us - s_them) >= 2: return 1.0
+            if s_them >= 25 and (s_them - s_us) >= 2: return 0.0
             
-            while True:
-                if score_us >= 25 and (score_us - score_them) >= 2:
-                    wins += 1
-                    break
-                if score_them >= 25 and (score_them - score_us) >= 2:
-                    break
-                    
-                roll = random.random()
-                if serving_team == 0: 
-                    if roll < p_win_serve:
-                        score_us += 1
-                    else:
-                        score_them += 1
-                        serving_team = 1
-                else: 
-                    if roll < self.our_receive_sideout_rate:
-                        score_us += 1
-                        serving_team = 0
-                    else:
-                        score_them += 1
-                        
-        p_win = wins / iterations
-        return max(0.001, min(0.999, p_win))
+            # Theoretical boundary max ceiling cap safety limit
+            if s_us > 32 or s_them > 32:
+                return 0.5 if s_us == s_them else (1.0 if s_us > s_them else 0.0)
+
+            if server == 0:  # We are serving
+                # If we win point, we score and keep serving. If we lose, they score and take over.
+                prob = (p_win_serve * dp(s_us + 1, s_them, 0)) + ((1.0 - p_win_serve) * dp(s_us, s_them + 1, 1))
+            else:            # Opponent is serving
+                # If we win point, we score and take over. If we lose, they score and keep serving.
+                prob = (self.our_receive_sideout_rate * dp(s_us + 1, s_them, 0)) + ((1.0 - self.our_receive_sideout_rate) * dp(s_us, s_them + 1, 1))
+
+            memo[state] = prob
+            return prob
+
+        ans = dp(start_us, start_them, start_serving)
+        return max(0.001, min(0.999, ans))
 
 def get_base_inputs():
     score_us = int(document.getElementById("score_us").value)
@@ -314,13 +311,13 @@ def calculate_topspin(event):
     ts_ace = float(document.getElementById("ts_ace").value)
     ts_err = float(document.getElementById("ts_err").value)
     
-    engine = VolleyballStabilizedEngine(level, gender, pass_vs_ts)
+    engine = VolleyballAnalyticalEngine(level, gender, pass_vs_ts)
     p_pt = engine.get_point_win_probability(ts_ace, ts_err)
-    final_avg = engine.run_stabilized_average(score_us, score_them, starting_server, p_pt)
+    exact_percentage = engine.calculate_exact_set_expectancy(score_us, score_them, starting_server, p_pt)
     
-    document.getElementById("output-rec").innerHTML = f"<div class='rec-text' style='color:#2563eb;'>Topspin Tactical Execution Forecast ({player})</div>" \
+    document.getElementById("output-rec").innerHTML = f"<div class='rec-text' style='color:#2563eb;'>Topspin Analytical Matrix Response ({player})</div>" \
                                                       f"Rally Win Prob on Serve: <strong>{round(p_pt * 100, 1)}%</strong><br>" \
-                                                      f"Averaged Set Win Expectancy: <span style='font-size:1.4rem; font-weight:bold;'>{round(final_avg * 100, 1)}%</span>"
+                                                      f"Exact Calculated Set Win Expectancy: <span style='font-size:1.4rem; font-weight:bold;'>{round(exact_percentage * 100, 1)}%</span>"
 
 def calculate_float(event):
     score_us, score_them, starting_server, player, level, gender = get_base_inputs()
@@ -328,13 +325,13 @@ def calculate_float(event):
     fl_ace = float(document.getElementById("fl_ace").value)
     fl_err = float(document.getElementById("fl_err").value)
     
-    engine = VolleyballStabilizedEngine(level, gender, pass_vs_fl)
+    engine = VolleyballAnalyticalEngine(level, gender, pass_vs_fl)
     p_pt = engine.get_point_win_probability(fl_ace, fl_err)
-    final_avg = engine.run_stabilized_average(score_us, score_them, starting_server, p_pt)
+    exact_percentage = engine.calculate_exact_set_expectancy(score_us, score_them, starting_server, p_pt)
     
-    document.getElementById("output-rec").innerHTML = f"<div class='rec-text' style='color:#0d9488;'>Float Tactical Execution Forecast ({player})</div>" \
+    document.getElementById("output-rec").innerHTML = f"<div class='rec-text' style='color:#0d9488;'>Float Analytical Matrix Response ({player})</div>" \
                                                       f"Rally Win Prob on Serve: <strong>{round(p_pt * 100, 1)}%</strong><br>" \
-                                                      f"Averaged Set Win Expectancy: <span style='font-size:1.4rem; font-weight:bold;'>{round(final_avg * 100, 1)}%</span>"
+                                                      f"Exact Calculated Set Win Expectancy: <span style='font-size:1.4rem; font-weight:bold;'>{round(exact_percentage * 100, 1)}%</span>"
     </script>
 </body>
 </html>
