@@ -23,16 +23,18 @@
         .score-display { font-size: 2.5rem; font-weight: bold; color: #0f172a; margin: 5px 0; }
         .btn-score { background: #64748b; color: white; border: none; padding: 8px 16px; font-size: 1.1rem; font-weight: bold; border-radius: 5px; cursor: pointer; margin: 0 4px; }
         .btn-score:hover { background: #475569; }
-        .btn-primary { width: 100%; background-color: #2563eb; color: white; border: none; padding: 12px; font-size: 1.1rem; font-weight: bold; border-radius: 6px; cursor: pointer; margin-top: 10px; }
-        .btn-primary:hover { background-color: #1d4ed8; }
+        
+        /* Tactical Evaluation Button Styles */
+        .btn-ts { width: 100%; background-color: #2563eb; color: white; border: none; padding: 14px; font-size: 1rem; font-weight: bold; border-radius: 6px; cursor: pointer; margin-top: 5px; transition: background 0.2s; }
+        .btn-ts:hover { background-color: #1d4ed8; }
+        .btn-fl { width: 100%; background-color: #0d9488; color: white; border: none; padding: 14px; font-size: 1rem; font-weight: bold; border-radius: 6px; cursor: pointer; margin-top: 5px; transition: background 0.2s; }
+        .btn-fl:hover { background-color: #0f766e; }
+
         .btn-secondary { background-color: #10b981; color: white; border: none; padding: 8px; font-weight: bold; border-radius: 5px; cursor: pointer; width: 100%; margin-top: 22px; }
         .btn-secondary:hover { background-color: #059669; }
-        .result-box { background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; margin-top: 20px; border-radius: 8px; }
-        .recommendation-highlight { background-color: #eff6ff; border-left: 5px solid #3b82f6; padding: 12px; margin-bottom: 15px; border-radius: 4px; }
+        .result-box { background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; margin-top: 25px; border-radius: 8px; }
+        .recommendation-highlight { background-color: #eff6ff; border-left: 5px solid #3b82f6; padding: 15px; margin-bottom: 10px; border-radius: 4px; }
         .rec-text { font-size: 1.2rem; font-weight: bold; color: #1e3a8a; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85rem; }
-        th, td { border: 1px solid #e2e8f0; padding: 8px; text-align: left; }
-        th { background-color: #f1f5f9; }
         .roster-list { max-height: 120px; overflow-y: auto; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px; margin-top: 10px; }
         .roster-item { display: flex; justify-content: space-between; padding: 4px; font-size: 0.85rem; border-bottom: 1px solid #f1f5f9; }
         .btn-delete { background: #ef4444; color: white; border: none; border-radius: 3px; padding: 2px 6px; cursor: pointer; font-size: 0.75rem; }
@@ -42,7 +44,7 @@
 
     <div class="container">
         <h1>🏐 Volleyball Strategy Dashboard</h1>
-        <div class="subtitle">Data-Driven Live In-Game Monte Carlo Optimization Engine</div>
+        <div class="subtitle">Stabilized In-Game Matrix Engine</div>
         
         <div class="section-title">1. Server Profiles (Saves to Browser)</div>
         <div class="grid-3">
@@ -118,28 +120,17 @@
         <input type="hidden" id="fl_ace" value="0.05">
         <input type="hidden" id="fl_err" value="0.05">
 
-        <button id="calc-btn" class="btn-primary" py-click="run_optimization">Run 1,000 Target Simulations</button>
+        <div class="section-title">5. Run Tactical Forecast Sequence</div>
+        <div class="grid-2">
+            <button id="calc-ts-btn" class="btn-ts" py-click="calculate_topspin">Calculate Win Probability with Topspin</button>
+            <button id="calc-fl-btn" class="btn-fl" py-click="calculate_float">Calculate Win Probability with Float</button>
+        </div>
 
         <div class="result-box">
             <div class="section-title" style="margin-top:0; border-bottom:1px solid #cbd5e1;">Live Optimized Tactical Report</div>
             <div id="output-rec" class="recommendation-highlight">
-                Establish game state, click parameters, and execute simulations.
+                Select parameters and tap a calculation strategy button above to see the stabilized forecast.
             </div>
-            
-            <table>
-                <thead>
-                    <tr>
-                        <th>Serve Type Options</th>
-                        <th>Point Win Prob. (On Serve Turn)</th>
-                        <th>Simulated Set Win Expectancy</th>
-                    </tr>
-                </thead>
-                <tbody id="table-body">
-                    <tr>
-                        <td colspan="3" style="text-align:center; color:#94a3b8;">Awaiting simulation pass...</td>
-                    </tr>
-                </tbody>
-            </table>
         </div>
     </div>
 
@@ -229,98 +220,88 @@
 from pyscript import document
 import random
 
-class VolleyballMonteCarloEngine:
-    def __init__(self, pass_vs_ts, pass_vs_fl):
-        # Translate 0.0-3.0 ratings into standard perfect pass and kill efficiency adjustments
-        # Lower rating means poorer passing = worse offensive options for opponent
-        self.perfect_pass_ts = max(0.05, min(0.95, (pass_vs_ts / 3.0)))
-        self.perfect_pass_fl = max(0.05, min(0.95, (pass_vs_fl / 3.0)))
-        
-        # Approximate base opponent killing efficiencies derived from passing quality
+class VolleyballStabilizedEngine:
+    def __init__(self, pass_rating):
+        self.perfect_pass_rate = max(0.05, min(0.95, (pass_rating / 3.0)))
         self.opp_kill_in_system = 0.52
         self.opp_kill_out_system = 0.26
-        
-        # General sideout rate when we receive standard opponent serves
         self.our_receive_sideout_rate = 0.50
 
-    def calculate_point_win_probability(self, ace, error, perfect_pass_rate):
+    def get_point_win_probability(self, ace, error):
         p_in = 1.0 - (ace + error)
         if p_in <= 0: return ace
-        
-        # Opponent overall attack conversion based on how effectively they handle the pass
-        opp_efficiency = (perfect_pass_rate * self.opp_kill_in_system) + ((1.0 - perfect_pass_rate) * self.opp_kill_out_system)
+        opp_efficiency = (self.perfect_pass_rate * self.opp_kill_in_system) + ((1.0 - self.perfect_pass_rate) * self.opp_kill_out_system)
         return ace + (p_in * (1.0 - opp_efficiency))
 
-    def simulate_set_win_percentage(self, start_us, start_them, start_serving, p_win_serve, trials=1000):
-        """ Runs 1,000 unique Monte Carlo simulation updates from the current score """
+    def run_stabilized_average(self, start_us, start_them, start_serving, p_win_serve, iterations=1000):
+        # Anchor the random number generator seed to lock simulation steps and stop variance bouncing
+        random.seed(42)
         wins = 0
         
-        for _ in range(trials):
+        for _ in range(iterations):
             score_us = start_us
             score_them = start_them
             serving_team = start_serving # 0 = us, 1 = them
             
             while True:
-                # Check match endings
                 if score_us >= 25 and (score_us - score_them) >= 2:
                     wins += 1
                     break
                 if score_them >= 25 and (score_them - score_us) >= 2:
                     break
                     
-                # Evaluate active rally updates via random chance weights
                 roll = random.random()
-                if serving_team == 0:  # We serve
+                if serving_team == 0: 
                     if roll < p_win_serve:
-                        score_us += 1  # We win point, keep serving
+                        score_us += 1
                     else:
                         score_them += 1
-                        serving_team = 1 # They win point, take over serving
-                else:                  # They serve
+                        serving_team = 1
+                else: 
                     if roll < self.our_receive_sideout_rate:
                         score_us += 1
-                        serving_team = 0 # We side out, take over serving
+                        serving_team = 0
                     else:
-                        score_them += 1 # They win point, keep serving
+                        score_them += 1
                         
-        p_win = wins / trials
-        # Ensure hard clipping rules requested by user
+        p_win = wins / iterations
         return max(0.001, min(0.999, p_win))
 
-def run_optimization(event):
+def get_base_inputs():
     score_us = int(document.getElementById("score_us").value)
     score_them = int(document.getElementById("score_them").value)
     poss = document.getElementById("current_poss").value
     player = document.getElementById("active-player").value
+    starting_server = 0 if poss == "us" else 1
+    return score_us, score_them, starting_server, player
 
+def calculate_topspin(event):
+    score_us, score_them, starting_server, player = get_base_inputs()
     pass_vs_ts = float(document.getElementById("opp_pass_vs_ts").value)
-    pass_vs_fl = float(document.getElementById("opp_pass_vs_fl").value)
-
     ts_ace = float(document.getElementById("ts_ace").value)
     ts_err = float(document.getElementById("ts_err").value)
+    
+    engine = VolleyballStabilizedEngine(pass_vs_ts)
+    p_pt = engine.get_point_win_probability(ts_ace, ts_err)
+    final_avg = engine.run_stabilized_average(score_us, score_them, starting_server, p_pt)
+    
+    document.getElementById("output-rec").innerHTML = f"<div class='rec-text' style='color:#2563eb;'>Topspin Tactical Execution Forecast ({player})</div>" \
+                                                      f"Rally Win Prob on Serve: <strong>{round(p_pt * 100, 1)}%</strong><br>" \
+                                                      f"Averaged Set Win Expectancy: <span style='font-size:1.4rem; font-weight:bold;'>{round(final_avg * 100, 1)}%</span>"
+
+def calculate_float(event):
+    score_us, score_them, starting_server, player = get_base_inputs()
+    pass_vs_fl = float(document.getElementById("opp_pass_vs_fl").value)
     fl_ace = float(document.getElementById("fl_ace").value)
     fl_err = float(document.getElementById("fl_err").value)
-
-    starting_server = 0 if poss == "us" else 1
-
-    # Instantiate Simulator using Defense Input Profiles directly
-    engine = VolleyballMonteCarloEngine(pass_vs_ts, pass_vs_fl)
     
-    p_pt_ts = engine.calculate_point_win_probability(ts_ace, ts_err, engine.perfect_pass_ts)
-    p_set_ts = engine.simulate_set_win_percentage(score_us, score_them, starting_server, p_pt_ts)
-
-    p_pt_fl = engine.calculate_point_win_probability(fl_ace, fl_err, engine.perfect_pass_fl)
-    p_set_fl = engine.simulate_set_win_percentage(score_us, score_them, starting_server, p_pt_fl)
-
-    best_strat, best_prob = ("Topspin Serve", p_set_ts) if p_set_ts >= p_set_fl else ("Float Serve", p_set_fl)
-
-    document.getElementById("output-rec").innerHTML = f"<div class='rec-text'>Target Strategy for {player}: {best_strat}</div>" \
-                                                      f"Monte Carlo modeling predicts a <strong>{round(best_prob * 100, 1)}%</strong> set win expectancy."
-
-    document.getElementById("table-body").innerHTML = f"""
-        <tr><td><strong>Topspin Serve</strong></td><td>{round(p_pt_ts * 100, 1)}%</td><td>{round(p_set_ts * 100, 1)}%</td></tr>
-        <tr><td><strong>Float Serve</strong></td><td>{round(p_pt_fl * 100, 1)}%</td><td>{round(p_set_fl * 100, 1)}%</td></tr>
-    """
+    engine = VolleyballStabilizedEngine(pass_vs_fl)
+    p_pt = engine.get_point_win_probability(fl_ace, fl_err)
+    final_avg = engine.run_stabilized_average(score_us, score_them, starting_server, p_pt)
+    
+    document.getElementById("output-rec").innerHTML = f"<div class='rec-text' style='color:#0d9488;'>Float Tactical Execution Forecast ({player})</div>" \
+                                                      f"Rally Win Prob on Serve: <strong>{round(p_pt * 100, 1)}%</strong><br>" \
+                                                      f"Averaged Set Win Expectancy: <span style='font-size:1.4rem; font-weight:bold;'>{round(final_avg * 100, 1)}%</span>"
     </script>
 </body>
 </html>
