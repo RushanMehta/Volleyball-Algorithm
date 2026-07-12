@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Volleyball Strategy Dashboard v2.1</title>
+    <title>Volleyball Optimization Framework v2.2</title>
     
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
@@ -18,9 +18,11 @@
             --accent-fl: #0d9488;
             --border: #334155;
             --recommend: #22c55e;
+            --warn-low: #ef4444;
+            --warn-med: #f59e0b;
         }
         body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: var(--bg-primary); color: var(--text-main); margin: 0; padding: 20px; }
-        .container { max-width: 1150px; margin: 0 auto; background: var(--bg-secondary); padding: 30px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+        .container { max-width: 1200px; margin: 0 auto; background: var(--bg-secondary); padding: 30px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
         h1 { color: #f1f5f9; text-align: center; margin: 0 0 5px 0; font-size: 2rem; font-weight: 700; }
         .subtitle { text-align: center; color: var(--text-muted); margin-bottom: 30px; font-size: 1rem; font-style: italic; }
         .section-title { font-size: 1.15rem; font-weight: bold; color: #f1f5f9; border-bottom: 2px solid var(--border); padding-bottom: 6px; margin-top: 30px; margin-bottom: 15px; }
@@ -50,7 +52,7 @@
         .recommendation-banner { padding: 20px; margin-bottom: 15px; border-radius: 6px; display: flex; flex-direction: column; gap: 10px; }
         .rec-header { font-size: 1.6rem; font-weight: 800; display: flex; justify-content: space-between; align-items: center; }
         
-        .roster-list { max-height: 150px; overflow-y: auto; background: #0f172a; border: 1px solid var(--border); border-radius: 6px; padding: 8px; }
+        .roster-list { max-height: 120px; overflow-y: auto; background: #0f172a; border: 1px solid var(--border); border-radius: 6px; padding: 8px; }
         .roster-item { display: flex; justify-content: space-between; align-items: center; padding: 6px; font-size: 0.85rem; border-bottom: 1px solid var(--border); }
         .btn-delete { background: #ef4444; color: white; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer; }
         .error-msg { background-color: #7f1d1d; color: #fca5a5; padding: 12px; border-radius: 6px; border: 1px solid #b91c1c; margin-top: 15px; font-weight: bold; display: none; }
@@ -63,23 +65,27 @@
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9rem; }
         th, td { padding: 10px; border: 1px solid var(--border); text-align: left; }
         th { background: #0f172a; }
+        .badge { padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; }
+        .badge-low { background: var(--warn-low); color: white; }
+        .badge-med { background: var(--warn-med); color: black; }
+        .badge-high { background: var(--recommend); color: white; }
     </style>
 </head>
 <body>
 
     <div class="container">
         <h1>🏐 Volleyball Strategy Dashboard</h1>
-        <div class="subtitle">v2.1: Dynamic Programming Set Solver & Rally Probability Model</div>
+        <div class="subtitle">v2.2: Computational Optimization Model & Boundary Analytics Core</div>
         
         <div class="tab-container">
-            <button class="tab active" onclick="switchTab('tab-engine')">Execution Dashboard</button>
-            <button class="tab" onclick="switchTab('tab-model-details')">Model Architecture & Assumptions</button>
+            <button class="tab active" onclick="switchTab(event, 'tab-engine')">Execution Dashboard</button>
+            <button class="tab" onclick="switchTab(event, 'tab-model-details')">Model Architecture & Assumptions</button>
         </div>
 
         <div id="tab-engine" class="tab-content active">
             <div class="grid-layout">
                 <div class="column">
-                    <div class="section-title">1. Player Profile Profile Management</div>
+                    <div class="section-title">1. Player Profiles (Saves to Local Storage)</div>
                     <div class="grid-3">
                         <div class="input-group">
                             <label>Player Name</label>
@@ -91,54 +97,59 @@
                         </div>
                         <div class="input-group">
                             <label style="margin-top:24px; display:block;"></label>
-                            <button class="btn-reset" style="width:100%;" onclick="resetEngineState()">Reset All Data</button>
+                            <button class="btn-reset" style="width:100%;" onclick="resetEngineState()">Reset Profiles</button>
                         </div>
                     </div>
                     
-                    <div style="font-size:0.8rem; margin-bottom:5px; color:var(--text-muted)">Input Format: Whole Integer Percentages (e.g., 15 = 15%) & Sample Size ($n$)</div>
+                    <div style="font-size:0.8rem; margin-bottom:5px; color:var(--text-muted)">Input Format: Whole Integer Percentages (0-100) & Absolute Total Sample ($n$)</div>
                     <div class="grid-6">
-                        <label>TS Sample ($n$)</label><label>TS Ace%</label><label>TS Err%</label><label>TS Poor%</label><label>TS Avg%</label><label>TS Perf%</label>
+                        <label>TS Count ($n$)</label><label>TS Ace%</label><label>TS Err%</label><label>TS Poor%</label><label>TS Avg%</label><label>TS Perf%</label>
                         <input type="number" id="p_ts_n" value="150"><input type="number" id="p_ts_ace" value="15"><input type="number" id="p_ts_err" value="25"><input type="number" id="p_ts_poor" value="30"><input type="number" id="p_ts_avg" value="20"><input type="number" id="p_ts_perf" value="10">
                     </div>
                     <div class="grid-6" style="margin-top:5px;">
-                        <label>FL Sample ($n$)</label><label>FL Ace%</label><label>FL Err%</label><label>FL Poor%</label><label>FL Avg%</label><label>FL Perf%</label>
+                        <label>FL Count ($n$)</label><label>FL Ace%</label><label>FL Err%</label><label>FL Poor%</label><label>FL Avg%</label><label>FL Perf%</label>
                         <input type="number" id="p_fl_n" value="220"><input type="number" id="p_fl_ace" value="5"><input type="number" id="p_fl_err" value="5"><input type="number" id="p_fl_poor" value="15"><input type="number" id="p_fl_avg" value="45"><input type="number" id="p_fl_perf" value="30">
                     </div>
                     
                     <div class="roster-list" id="roster-view" style="margin-top:10px;"></div>
                     
-                    <div class="section-title">2. Active Context Initialization</div>
-                    <div class="grid-3">
+                    <div class="section-title">2. Live Opponent Tactical Parameters</div>
+                    <div class="grid-2">
                         <div class="input-group">
-                            <label>Selected Target Profile</label>
-                            <select id="active-player" onchange="loadActivePlayerStats()"></select>
+                            <label>Opponent In-System Kill % (Perfect Pass)</label>
+                            <input type="number" id="opp_kill_perfect" value="64" min="0" max="100">
                         </div>
                         <div class="input-group">
-                            <label>Competition Level</label>
-                            <select id="level">
-                                <option value="High School">High School</option>
-                                <option value="College">College</option>
-                                <option value="Pro" selected>Professional</option>
-                            </select>
+                            <label>Opponent Medium-System Kill % (Average Pass)</label>
+                            <input type="number" id="opp_kill_average" value="48" min="0" max="100">
+                        </div>
+                    </div>
+                    <div class="grid-2">
+                        <div class="input-group">
+                            <label>Opponent Out-of-System Kill % (Poor Pass)</label>
+                            <input type="number" id="opp_kill_poor" value="38" min="0" max="100">
                         </div>
                         <div class="input-group">
-                            <label>Gender Division</label>
-                            <select id="gender">
-                                <option value="Girls">Girls / Women</option>
-                                <option value="Boys" selected>Boys / Men</option>
-                            </select>
+                            <label>Our Team Sideout Probability % (Opponent Serving)</label>
+                            <input type="number" id="our_sideout_rate" value="65" min="0" max="100">
                         </div>
                     </div>
                 </div>
 
                 <div class="column">
-                    <div class="section-title">3. Live Match State Tracker</div>
-                    <div class="input-group">
-                        <label>Current Service Possession State</label>
-                        <select id="current_poss" style="border: 2px solid #f59e0b;">
-                            <option value="us">Our Team is Serving</option>
-                            <option value="them">Opponent Team is Serving</option>
-                        </select>
+                    <div class="section-title">3. Active Context & Match Score State</div>
+                    <div class="grid-2">
+                        <div class="input-group">
+                            <label>Selected Server Profile</label>
+                            <select id="active-player" onchange="loadActivePlayerStats()"></select>
+                        </div>
+                        <div class="input-group">
+                            <label>Current Serve Possession</label>
+                            <select id="current_poss" style="border: 2px solid #f59e0b;">
+                                <option value="us">Our Team is Serving</option>
+                                <option value="them">Opponent Team is Serving</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="grid-2">
                         <div class="score-box">
@@ -170,57 +181,22 @@
         </div>
 
         <div id="tab-model-details" class="tab-content">
-            <div class="section-title">Model Formulation & Empirical Framework</div>
-            <p>This decision engine models volleyball sets as discrete Markov chains solved via backwards induction to map structural game state equities without statistical noise.</p>
+            <div class="section-title">Mathematical Formulation & Framework</div>
+            <p>This computational framework models volleyball sets as a discrete finite Markov chain resolved without simulation variance through backwards induction dynamic programming.</p>
             
-            <h3>Equation 1: Serve Outcome Completeness Constraint</h3>
+            <h3>Equation 1: Serve Outcome Partition Completeness</h3>
             <p>$$\sum P(\text{Outcome}_i) = P(\text{Ace}) + P(\text{Error}) + P(\text{Poor}) + P(\text{Average}) + P(\text{Perfect}) = 1.0$$</p>
             
-            <h3>Equation 2: Rally Win Probability Decomposition</h3>
+            <h3>Equation 2: Rally Win Probability Model</h3>
             <p>$$P(\text{Win Rally} \mid \text{Serve}) = P(\text{Ace}) + \sum_{s \in \text{States}} P(\text{Outcome}_s) \times (1.0 - \text{Kill}_s)$$</p>
 
-            <h3>Assumed Baseline Constants (Awaiting Empirical Literature Validation)</h3>
-            <p style="color: var(--text-muted); font-size: 0.9rem;"><em>Note for Peer Reviewers: The baseline parameters mapped below represent structured assumptions for model demonstration. These must be replaced with tracked match-file values or specific tracking team matrices during validation phases.</em></p>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Context Category</th>
-                        <th>Perfect Pass ($\text{Kill}_{\text{perfect}}$)</th>
-                        <th>Average Pass ($\text{Kill}_{\text{avg}}$)</th>
-                        <th>Poor Pass ($\text{Kill}_{\text{poor}}$)</th>
-                        <th>Baseline Side-out</th>
-                        <th>Target Data Proxy Attribution</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>Pro Men</td><td>64.0%</td><td>48.0%</td><td>38.0%</td><td>65.0%</td><td>Estimated Demo Standard (Pro Boys)</td>
-                    </tr>
-                    <tr>
-                        <td>Pro Women</td><td>54.0%</td><td>40.0%</td><td>30.0%</td><td>56.0%</td><td>Estimated Demo Standard (Pro Girls)</td>
-                    </tr>
-                    <tr>
-                        <td>College Men</td><td>58.0%</td><td>44.0%</td><td>34.0%</td><td>60.0%</td><td>Estimated Demo Standard (College Boys)</td>
-                    </tr>
-                    <tr>
-                        <td>College Women</td><td>48.0%</td><td>36.0%</td><td>26.0%</td><td>52.0%</td><td>Estimated Demo Standard (College Girls)</td>
-                    </tr>
-                    <tr>
-                        <td>High School Boys</td><td>48.0%</td><td>38.0%</td><td>28.0%</td><td>50.0%</td><td>Estimated Demo Standard (HS Boys)</td>
-                    </tr>
-                    <tr>
-                        <td>High School Girls</td><td>38.0%</td><td>26.0%</td><td>18.0%</td><td>44.0%</td><td>Estimated Demo Standard (HS Girls)</td>
-                    </tr>
-                </tbody>
-            </table>
-
-            <div class="section-title">Model Simplifications & Strategic Assumptions</div>
-            <p>To retain mathematical clarity, this model utilizes an aggregated transition boundary shortcut. Reviewers should note the following structured chain compromises:</p>
+            <div class="section-title">Strategic Model Simplifications</div>
+            <p>To retain exact mathematical boundary evaluation rules, this model maps tactical performance vectors immediately through an aggregated shortcut:</p>
             <blockquote>
                 <strong>Acknowledged Simplification Flow:</strong><br>
-                Instead of modeling distinct situational paths for every micro-contact sequence:<br>
-                $$\text{Serve} \longrightarrow \text{Reception Quality} \longrightarrow \text{Set Quality} \longrightarrow \text{Attack Quality} \longrightarrow \text{Rally Outcome}$$
-                The system maps the direct outcome vectors into an aggregated defensive kill efficiency parameter ($\text{Kill}_s$), condensing secondary handling variables into a single downstream probability state.
+                Instead of modeling high-variance situational variables for every specific ball contact sequence:<br>
+                $$\text{Serve Choice} \longrightarrow \text{Reception Quality} \longrightarrow \text{Set Quality} \longrightarrow \text{Attack Quality} \longrightarrow \text{Rally Outcome}$$
+                The system maps the direct outcome probability distributions directly into an aggregated defensive kill efficiency parameter ($\text{Kill}_s$), condensing downstream sequence adjustments into the state matrix ruleset.
             </blockquote>
         </div>
     </div>
@@ -232,23 +208,28 @@
                 fl: [220, 5, 5, 15, 45, 30]
             }
         };
-        function switchTab(id) {
+        function switchTab(evt, id) {
             document.querySelectorAll('.tab-content').forEach(e => e.classList.remove('active'));
             document.querySelectorAll('.tab').forEach(e => e.classList.remove('active'));
             document.getElementById(id).classList.add('active');
-            event.target.classList.add('active');
+            evt.currentTarget.classList.add('active');
         }
         function getRoster() {
-            let d = localStorage.getItem("vb_v2_1_roster");
+            let d = localStorage.getItem("vb_v2_2_roster");
             return d ? JSON.parse(d) : defaultRoster;
         }
         function saveRoster(r) {
-            localStorage.setItem("vb_v2_1_roster", JSON.stringify(r));
+            localStorage.setItem("vb_v2_2_roster", JSON.stringify(r));
             updateRosterUI();
+        }
+        function getConfidenceBadge(n) {
+            if (n < 50) return `<span class="badge badge-low">Low Confidence (n=${n})</span>`;
+            if (n < 150) return `<span class="badge badge-med">Medium Confidence (n=${n})</span>`;
+            return `<span class="badge badge-high">High Confidence (n=${n})</span>`;
         }
         function addPlayer() {
             let name = document.getElementById("p_name").value.trim();
-            if(!name) return alert("Valid identity label required");
+            if(!name) return alert("Valid player identity label required");
             let r = getRoster();
             r[name] = {
                 ts: [parseInt(document.getElementById("p_ts_n").value), parseInt(document.getElementById("p_ts_ace").value), parseInt(document.getElementById("p_ts_err").value), parseInt(document.getElementById("p_ts_poor").value), parseInt(document.getElementById("p_ts_avg").value), parseInt(document.getElementById("p_ts_perf").value)],
@@ -280,13 +261,13 @@
             for(let p in r) {
                 let o = document.createElement("option"); o.value = p; o.innerText = p; s.appendChild(o);
                 let item = document.createElement("div"); item.className = "roster-item";
-                item.innerHTML = `<span><strong>${p}</strong> | TS (n=${r[p].ts[0]}, Ace:${r[p].ts[1]}%) | FL (n=${r[p].fl[0]}, Ace:${r[p].fl[1]}%)</span><button class="btn-delete" onclick="deletePlayer('${p}')">X</button>`;
+                item.innerHTML = `<span><strong>${p}</strong> | TS: ${getConfidenceBadge(r[p].ts[0])} | FL: ${getConfidenceBadge(r[p].fl[0])}</span><button class="btn-delete" onclick="deletePlayer('${p}')">X</button>`;
                 l.appendChild(item);
             }
             loadActivePlayerStats();
         }
         function resetEngineState() {
-            localStorage.clear(); defaultRoster = { "Elite Target A": { ts: [150, 15, 25, 30, 20, 10], fl: [220, 5, 5, 15, 45, 30] } };
+            localStorage.removeItem("vb_v2_2_roster"); defaultRoster = { "Elite Target A": { ts: [150, 15, 25, 30, 20, 10], fl: [220, 5, 5, 15, 45, 30] } };
             document.getElementById("score_us").value = 17; document.getElementById("disp_us").innerText = 17;
             document.getElementById("score_them").value = 17; document.getElementById("disp_them").innerText = 17;
             updateRosterUI();
@@ -299,58 +280,34 @@ from pyscript import document
 import random
 
 class VolleyballSetSolver:
-    """
-    Dynamic Programming Set Solver & Rally Probability Model.
-    Computes exact boundary conditions over discrete match states.
-    """
-    def __init__(self, level, gender):
-        # Baseline Constants Database Proxy Matrix Configuration
-        self.matrix = {
-            ('Pro', 'Boys'): (0.64, 0.48, 0.38, 0.65),
-            ('Pro', 'Girls'): (0.54, 0.40, 0.30, 0.56),
-            ('College', 'Boys'): (0.58, 0.44, 0.34, 0.60),
-            ('College', 'Girls'): (0.48, 0.36, 0.26, 0.52),
-            ('High School', 'Boys'): (0.48, 0.38, 0.28, 0.50),
-            ('High School', 'Girls'): (0.38, 0.26, 0.18, 0.44)
-        }
-        vals = self.matrix.get((level, gender), (0.45, 0.35, 0.25, 0.50))
-        self.kill_perfect = vals[0]  
-        self.kill_average = vals[1]  
-        self.kill_poor = vals[2]     
-        self.our_sideout = vals[3]    
+    def __init__(self, kill_perfect, kill_average, kill_poor, our_sideout):
+        self.kill_perfect = kill_perfect
+        self.kill_average = kill_average
+        self.kill_poor = kill_poor
+        self.our_sideout = our_sideout
 
     def compute_rally_win_probability(self, vector):
-        """
-        Rally Probability Model: Equation 2 Execution
-        Vector Indices: 0=Ace, 1=Error, 2=Poor, 3=Average, 4=Perfect
-        """
         p_ace, p_err, p_poor, p_avg, p_perf = vector
-        
-        # Combined transition probability resolution path mapping
         return (p_ace * 1.0) + (p_err * 0.0) + \
                (p_poor * (1.0 - self.kill_poor)) + \
                (p_avg * (1.0 - self.kill_average)) + \
                (p_perf * (1.0 - self.kill_perfect))
 
     def calculate_set_win_probability(self, start_us, start_them, start_serving, p_win_serve):
-        """
-        Dynamic Programming Set Solver implementing backward induction state resolution.
-        """
         memo = {}
 
         def backward_induction(s_us, s_them, server):
             state = (s_us, s_them, server)
             if state in memo: return memo[state]
 
-            # Terminal criteria evaluation boundaries
             if s_us >= 25 and (s_us - s_them) >= 2: return 1.0
             if s_them >= 25 and (s_them - s_us) >= 2: return 0.0
             if s_us > 35 or s_them > 35: return 0.5 if s_us == s_them else (1.0 if s_us > s_them else 0.0)
 
-            if server == 0:  # Our Service Point Allocation Paths
+            if server == 0:  
                 prob = (p_win_serve * backward_induction(s_us + 1, s_them, 0)) + \
                        ((1.0 - p_win_serve) * backward_induction(s_us, s_them + 1, 1))
-            else:            # Opponent Service Point Allocation Paths
+            else:            
                 prob = (self.our_sideout * backward_induction(s_us + 1, s_them, 0)) + \
                        ((1.0 - self.our_sideout) * backward_induction(s_us, s_them + 1, 1))
 
@@ -360,9 +317,6 @@ class VolleyballSetSolver:
         return backward_induction(start_us, start_them, start_serving)
 
     def run_monte_carlo_verification(self, start_us, start_them, start_serving, p_win_serve, trials=100000):
-        """
-        Monte Carlo Simulator to verify mathematical agreement with the DP solver.
-        """
         random.seed(42) 
         wins = 0
         for _ in range(trials):
@@ -386,6 +340,41 @@ class VolleyballSetSolver:
                     else: s_them += 1
         return wins / trials
 
+    def compute_breakeven_topspin_error(self, start_us, start_them, start_serving, ts_vector, float_set_equity):
+        """
+        Decision Boundary Analysis Core (Research Optimization)
+        Finds the exact critical error threshold where Topspin set equity drops below Float baseline.
+        """
+        low, high = 0.0, 1.0
+        best_error_threshold = ts_vector[1]
+        
+        # Binary search optimization parameter sweep loop
+        for _ in range(25):
+            mid_error = (low + high) / 2.0
+            
+            # Rebalance remaining vector paths across operational distributions
+            remaining_mass = 1.0 - (ts_vector[0] + mid_error)
+            if remaining_mass < 0:
+                high = mid_error; continue
+                
+            old_distribution_sum = sum(ts_vector[2:])
+            if old_distribution_sum > 0:
+                scale = remaining_mass / old_distribution_sum
+                test_vector = [ts_vector[0], mid_error, ts_vector[2]*scale, ts_vector[3]*scale, ts_vector[4]*scale]
+            else:
+                test_vector = [ts_vector[0], mid_error, remaining_mass, 0.0, 0.0]
+                
+            test_rally = self.compute_rally_win_probability(test_vector)
+            test_set_equity = self.calculate_set_win_probability(start_us, start_them, start_serving, test_rally)
+            
+            if test_set_equity >= float_set_equity:
+                best_error_threshold = mid_error
+                low = mid_error # Can tolerate more error mass
+            else:
+                high = mid_error # Error mass is too damaging
+                
+        return best_error_threshold
+
 def execute_optimization_sequence(event):
     err_box = document.getElementById("validation-error-box")
     err_box.style.display = "none"
@@ -395,22 +384,31 @@ def execute_optimization_sequence(event):
         fl_n = int(document.getElementById("p_fl_n").value)
         ts_v = [float(document.getElementById("p_ts_ace").value)/100.0, float(document.getElementById("p_ts_err").value)/100.0, float(document.getElementById("p_ts_poor").value)/100.0, float(document.getElementById("p_ts_avg").value)/100.0, float(document.getElementById("p_ts_perf").value)/100.0]
         fl_v = [float(document.getElementById("p_fl_ace").value)/100.0, float(document.getElementById("p_fl_err").value)/100.0, float(document.getElementById("p_fl_poor").value)/100.0, float(document.getElementById("p_fl_avg").value)/100.0, float(document.getElementById("p_fl_perf").value)/100.0]
+        
+        k_perf = float(document.getElementById("opp_kill_perfect").value) / 100.0
+        k_avg = float(document.getElementById("opp_kill_average").value) / 100.0
+        k_poor = float(document.getElementById("opp_kill_poor").value) / 100.0
+        our_so = float(document.getElementById("our_sideout_rate").value) / 100.0
     except Exception:
-        err_box.innerText = "Error: System found formatting anomalies within profile attributes."; err_box.style.display = "block"; return
+        err_box.innerText = "Formatting Error: Ensure all numerical attributes contain proper values."; err_box.style.display = "block"; return
 
-    # Equation 1 Identity Sum Constraint Verification Validation
+    # Individual Parameter Range Constraints Check
+    for p in ts_v + fl_v + [k_perf, k_avg, k_poor, our_so]:
+        if p < 0.0 or p > 1.0:
+            err_box.innerText = "Boundary Error: Individual parameters must reside between 0% and 100%."; err_box.style.display = "block"; return
+
+    # Equation 1 Identity Sum Mass Constraint Verifications
     if abs(sum(ts_v) - 1.0) > 0.001 or abs(sum(fl_v) - 1.0) > 0.001:
-        err_box.innerText = "Mathematical Constraint Violated: Serve outcome probabilities must sum to exactly 100%. Check your input entries."; err_box.style.display = "block"; return
+        err_box.innerText = "Mathematical Error: Serve outcome probability fields must sum to exactly 100%."; err_box.style.display = "block"; return
 
     score_us = int(document.getElementById("score_us").value)
     score_them = int(document.getElementById("score_them").value)
     poss = document.getElementById("current_poss").value
     server_state = 0 if poss == "us" else 1
-    level = document.getElementById("level").value
-    gender = document.getElementById("gender").value
     player = document.getElementById("active-player").value
 
-    model = VolleyballSetSolver(level, gender)
+    # Model Hydration using Explicit Non-Hardcoded Scouting Rules
+    model = VolleyballSetSolver(k_perf, k_avg, k_poor, our_so)
     
     ts_rally = model.compute_rally_win_probability(ts_v)
     fl_rally = model.compute_rally_win_probability(fl_v)
@@ -421,49 +419,46 @@ def execute_optimization_sequence(event):
     ts_mc = model.run_monte_carlo_verification(score_us, score_them, server_state, ts_rally)
     fl_mc = model.run_monte_carlo_verification(score_us, score_them, server_state, fl_rally)
 
+    # Optimization Boundary Inversion Calculations
+    breakeven_ts_err = model.compute_breakeven_topspin_error(score_us, score_them, server_state, ts_v, fl_set)
+
     best_type = "TOPSPIN" if ts_set >= fl_set else "FLOAT"
-    diff = abs(ts_set - fl_set) * 100.0
+    equity_diff = abs(ts_set - fl_set) * 100.0
     color = "var(--accent-ts)" if best_type == "TOPSPIN" else "var(--accent-fl)"
     
     justification = []
     if best_type == "TOPSPIN":
-        if ts_v[0] > fl_v[0]: justification.append("Higher immediate ace efficiency reduces tracking volatility risks.")
-        if ts_v[2] > fl_v[2]: justification.append("Forces more out-of-system distributions, lowering opponent attack quality.")
-        if ts_rally > fl_rally: justification.append("Calculated rally win advantage counterbalances unforced service error exposure.")
-        if ts_n < 50: justification.append(f"Caution: Topspin profile sample size is low ($n={ts_n}$). Data reliability warnings apply.")
+        justification.append(f"Topspin holds tactical equity dominance. Current unforced error rate is {round(ts_v[1]*100,1)}%.")
+        justification.append(f"Decision Boundary: Topspin remains optimal up to a critical break-even error threshold of <strong>{round(breakeven_ts_err*100,1)}%</strong>.")
     else:
-        if fl_v[1] < ts_v[1]: justification.append("Minimization of unforced service errors protects critical point equity.")
-        if fl_v[3] + fl_v[4] > ts_v[3] + ts_v[4]: justification.append("Maintains tactical baseline pressure profile control under active transition rules.")
-        if fl_n < 50: justification.append(f"Caution: Float profile sample size is low ($n={fl_n}$). Data reliability warnings apply.")
+        justification.append(f"Float delivery maximizes mathematical set yield by minimizing unforced scoring vulnerability risks.")
+        justification.append(f"Optimization Threshold: To make Topspin viable at this score line, your player must reduce their topspin error rate below <strong>{round(breakeven_ts_err*100,1)}%</strong>.")
 
-    # Modified Measurement Mapping: Recommendation Strength Metric Assignment
-    rec_strength = min(99, int(50 + (diff * 12.5))) if diff > 0 else 50
-    stars = "★" * max(1, min(5, int(rec_strength / 20))) + "☆" * (5 - max(1, min(5, int(rec_strength / 20))))
+    if ts_n < 50 or fl_n < 50:
+        justification.append("<span style='color:var(--warn-low); font-weight:bold;'>Warning: Selected options utilize low sample counts ($n < 50$). Field observations required.</span>")
 
     out_html = f"""
     <div class='recommendation-banner' style='background: {color}; color: white;'>
         <div class='rec-header'>
-            <span>TACTICAL OPTIMIZATION MANDATE: {best_type}</span>
-            <span style='font-size:1.1rem; opacity:0.9;'>Recommendation Strength: {stars} ({rec_strength}%)</span>
+            <span>RECOMMENDED SERVE: {best_type}</span>
+            <span style='font-size:1.1rem; opacity:0.9;'>Strategy Margin: +{round(equity_diff,2)}% Set Equity</span>
         </div>
-        <div>Model recommends a <strong>{best_type}</strong> delivery strategy for player profile: <strong>{player}</strong>.</div>
+        <div>Optimization framework recommends tactical execution of <strong>{best_type}</strong> for profile: <strong>{player}</strong>.</div>
     </div>
     <div class='grid-2' style='margin-top:15px;'>
         <div>
             <h4>Exact Boundary Analytics (Dynamic Programming Solver)</h4>
-            <p>Topspin Projected Set Win Equity: <strong style='font-size:1.2rem; color:var(--accent-ts)'>{round(ts_set*100,2)}%</strong> (Rally Win: {round(ts_rally*100,1)}%, sample $n={ts_n}$)</p>
-            <p>Float Projected Set Win Equity: <strong style='font-size:1.2rem; color:var(--accent-fl)'>{round(fl_set*100,2)}%</strong> (Rally Win: {round(fl_rally*100,1)}%, sample $n={fl_n}$)</p>
-            <p>Projected Analytical Equity Margin Differential: <strong>+{round(diff,2)}% Advantage</strong></p>
+            <p>Topspin Projected Set Win Probability: <strong style='color:var(--accent-ts)'>{round(ts_set*100,2)}%</strong> (Rally Win: {round(ts_rally*100,1)}%)</p>
+            <p>Float Projected Set Win Probability: <strong style='color:var(--accent-fl)'>{round(fl_set*100,2)}%</strong> (Rally Win: {round(fl_rally*100,1)}%)</p>
         </div>
         <div>
-            <h4>Mathematical Agreement Verification (100k Monte Carlo Trials)</h4>
-            <p>Simulated Topspin Set Outcome Yield: <strong>{round(ts_mc*100,2)}%</strong></p>
-            <p>Simulated Float Set Outcome Yield: <strong>{round(fl_mc*100,2)}%</strong></p>
-            <p style='font-size:0.85rem; color:var(--text-muted); font-style:italic;'>The Monte Carlo simulation verified mathematical agreement with the dynamic programming solution to structural tolerances.</p>
+            <h4>Numerical Agreement Verification (100k Monte Carlo Trials)</h4>
+            <p>Simulated Topspin Set Outcome Yield: <strong>{round(ts_mc*100,2)}%</strong> (Delta: {round(abs(ts_set-ts_mc)*100,2)}%)</p>
+            <p>Simulated Float Set Outcome Yield: <strong>{round(fl_mc*100,2)}%</strong> (Delta: {round(abs(fl_set-fl_mc)*100,2)}%)</p>
         </div>
     </div>
     <div style='margin-top:15px; border-top:1px solid var(--border); padding-top:10px;'>
-        <strong>Strategic Explanatory Rationale:</strong>
+        <strong>Optimization Explanatory Boundary Analysis:</strong>
         <ul style='margin-top:5px; padding-left:20px;'>
             {"".join([f"<li>{j}</li>" for j in justification])}
         </ul>
