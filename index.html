@@ -149,38 +149,38 @@
             </div>
         </div>
 
-        <div class="section-title">3. Serve Execution Strategies (Input % as decimals, e.g., 0.15 = 15%)</div>
+        <div class="section-title">3. Serve Execution Strategies (Use decimals: e.g., 0.15 = 15%)</div>
         
-        <strong>Strategy A: Aggressive/High-Risk Serve</strong>
+        <strong style="color: #2563eb;">Option 1: Topspin Serve</strong>
         <div class="grid-2">
             <div class="input-group">
-                <label for="a_err">Missed Serve Rate (Errors)</label>
-                <input type="number" id="a_err" value="0.25" step="0.01" min="0" max="1">
+                <label for="ts_err">Missed Topspin Rate (Errors)</label>
+                <input type="number" id="ts_err" value="0.25" step="0.01" min="0" max="1">
             </div>
             <div class="input-group">
-                <label for="a_ace">Ace Rate</label>
-                <input type="number" id="a_ace" value="0.20" step="0.01" min="0" max="1">
+                <label for="ts_ace">Topspin Ace Rate</label>
+                <input type="number" id="ts_ace" value="0.20" step="0.01" min="0" max="1">
             </div>
         </div>
         <div class="input-group" style="margin-top:-10px;">
-            <label for="a_perf">Opponent Perfect Pass Rate (In-System)</label>
-            <input type="number" id="a_perf" value="0.20" step="0.01" min="0" max="1">
+            <label for="ts_perf">Opponent Perfect Pass Rate vs Topspin (In-System)</label>
+            <input type="number" id="ts_perf" value="0.20" step="0.01" min="0" max="1">
         </div>
 
-        <strong>Strategy B: Tactical/Safe Serve</strong>
+        <strong style="color: #0d9488;">Option 2: Float Serve</strong>
         <div class="grid-2">
             <div class="input-group">
-                <label for="b_err">Missed Serve Rate (Errors)</label>
-                <input type="number" id="b_err" value="0.05" step="0.01" min="0" max="1">
+                <label for="fl_err">Missed Float Rate (Errors)</label>
+                <input type="number" id="fl_err" value="0.05" step="0.01" min="0" max="1">
             </div>
             <div class="input-group">
-                <label for="b_ace">Ace Rate</label>
-                <input type="number" id="b_ace" value="0.05" step="0.01" min="0" max="1">
+                <label for="fl_ace">Float Ace Rate</label>
+                <input type="number" id="fl_ace" value="0.05" step="0.01" min="0" max="1">
             </div>
         </div>
         <div class="input-group" style="margin-top:-10px;">
-            <label for="b_perf">Opponent Perfect Pass Rate (In-System)</label>
-            <input type="number" id="b_perf" value="0.50" step="0.01" min="0" max="1">
+            <label for="fl_perf">Opponent Perfect Pass Rate vs Float (In-System)</label>
+            <input type="number" id="fl_perf" value="0.45" step="0.01" min="0" max="1">
         </div>
 
         <button id="calc-btn" py-click="run_optimization">Calculate Optimal Strategy</button>
@@ -194,7 +194,7 @@
             <table id="data-table">
                 <thead>
                     <tr>
-                        <th>Strategy Option</th>
+                        <th>Serve Type</th>
                         <th>Rally Win Prob.</th>
                         <th>Set Win Expectancy</th>
                     </tr>
@@ -236,7 +236,6 @@ class VolleyballMatchSimulator:
         opp_kill_in_sys = self.base_rates['in_system']
         opp_kill_out_sys = self.base_rates['out_system']
 
-        # Weighted calculation of opponent scoring when ball is put in play
         opp_efficiency = (perfect_pass * opp_kill_in_sys) + ((1.0 - perfect_pass) * opp_kill_out_sys)
         p_we_win_rally = 1.0 - opp_efficiency
 
@@ -261,55 +260,51 @@ class VolleyballMatchSimulator:
         return win_expectancy
 
 def run_optimization(event):
-    # 1. Grab inputs from DOM elements
     level = document.getElementById("level").value
     gender = document.getElementById("gender").value
     score_us = int(document.getElementById("score_us").value)
     score_them = int(document.getElementById("score_them").value)
 
-    # Strategy A metrics
-    a_ace = float(document.getElementById("a_ace").value)
-    a_err = float(document.getElementById("a_err").value)
-    a_perf = float(document.getElementById("a_perf").value)
+    # Topspin inputs
+    ts_ace = float(document.getElementById("ts_ace").value)
+    ts_err = float(document.getElementById("ts_err").value)
+    ts_perf = float(document.getElementById("ts_perf").value)
 
-    # Strategy B metrics
-    b_ace = float(document.getElementById("b_ace").value)
-    b_err = float(document.getElementById("b_err").value)
-    b_perf = float(document.getElementById("b_perf").value)
+    # Float inputs
+    fl_ace = float(document.getElementById("fl_ace").value)
+    fl_err = float(document.getElementById("fl_err").value)
+    fl_perf = float(document.getElementById("fl_perf").value)
 
-    # 2. Run background simulation calculations
     sim = VolleyballMatchSimulator(level, gender)
     
-    p_point_a = sim.calculate_point_win_probability(a_ace, a_err, a_perf)
-    p_set_a = sim.compute_set_win_expectancy(score_us, score_them, p_point_a)
+    p_point_ts = sim.calculate_point_win_probability(ts_ace, ts_err, ts_perf)
+    p_set_ts = sim.compute_set_win_expectancy(score_us, score_them, p_point_ts)
 
-    p_point_b = sim.calculate_point_win_probability(b_ace, b_err, b_perf)
-    p_set_b = sim.compute_set_win_expectancy(score_us, score_them, p_point_b)
+    p_point_fl = sim.calculate_point_win_probability(fl_ace, fl_err, fl_perf)
+    p_set_fl = sim.compute_set_win_expectancy(score_us, score_them, p_point_fl)
 
-    # 3. Determine best outcome choice
-    if p_set_a >= p_set_b:
-        best_strat = "Strategy A (Aggressive / High-Risk)"
-        best_prob = p_set_a
+    if p_set_ts >= p_set_fl:
+        best_strat = "Topspin Serve"
+        best_prob = p_set_ts
     else:
-        best_strat = "Strategy B (Tactical / Safe)"
-        best_prob = p_set_b
+        best_strat = "Float Serve"
+        best_prob = p_set_fl
 
-    # 4. Push results directly back to the visual HTML interface
     rec_div = document.getElementById("output-rec")
-    rec_div.innerHTML = f"<div class='rec-text'>Recommended: {best_strat}</div>" \
-                        f"Choosing this strategy yields a <strong>{round(best_prob * 100, 1)}%</strong> overall chance to win this set."
+    rec_div.innerHTML = f"<div class='rec-text'>Recommended Option: {best_strat}</div>" \
+                        f"Executing this choice grants your team a <strong>{round(best_prob * 100, 1)}%</strong> overall likelihood to secure the set win."
 
     table_body = document.getElementById("table-body")
     table_body.innerHTML = f"""
         <tr>
-            <td><strong>Strategy A (Aggressive)</strong></td>
-            <td>{round(p_point_a * 100, 1)}%</td>
-            <td>{round(p_set_a * 100, 1)}%</td>
+            <td><strong>Topspin Serve</strong></td>
+            <td>{round(p_point_ts * 100, 1)}%</td>
+            <td>{round(p_set_ts * 100, 1)}%</td>
         </tr>
         <tr>
-            <td><strong>Strategy B (Tactical/Safe)</strong></td>
-            <td>{round(p_point_b * 100, 1)}%</td>
-            <td>{round(p_set_b * 100, 1)}%</td>
+            <td><strong>Float Serve</strong></td>
+            <td>{round(p_point_fl * 100, 1)}%</td>
+            <td>{round(p_set_fl * 100, 1)}%</td>
         </tr>
     """
     </script>
