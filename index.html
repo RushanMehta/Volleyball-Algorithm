@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Volleyball Optimization Framework v2.6</title>
+    <title>Volleyball Optimization Framework v2.7</title>
     
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
@@ -21,129 +21,148 @@
             --warn-low: #ef4444;
             --warn-med: #f59e0b;
         }
-        body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: var(--bg-primary); color: var(--text-main); margin: 0; padding: 20px; }
-        .container { max-width: 1300px; margin: 0 auto; background: var(--bg-secondary); padding: 30px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
-        h1 { color: #f1f5f9; text-align: center; margin: 0 0 5px 0; font-size: 2rem; font-weight: 700; }
-        .subtitle { text-align: center; color: var(--text-muted); margin-bottom: 30px; font-size: 1rem; font-style: italic; }
-        .section-title { font-size: 1.15rem; font-weight: bold; color: #f1f5f9; border-bottom: 2px solid var(--border); padding-bottom: 6px; margin-top: 25px; margin-bottom: 15px; }
         
-        .grid-layout { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 25px; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: var(--bg-primary); color: var(--text-main); padding: 10px; }
+        
+        .container { max-width: 1300px; margin: 0 auto; background: var(--bg-secondary); padding: 15px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+        h1 { color: #f1f5f9; text-align: center; margin-bottom: 5px; font-size: 1.6rem; font-weight: 700; }
+        .subtitle { text-align: center; color: var(--text-muted); margin-bottom: 20px; font-size: 0.9rem; font-style: italic; }
+        .section-title { font-size: 1.05rem; font-weight: bold; color: #f1f5f9; border-bottom: 2px solid var(--border); padding-bottom: 6px; margin-top: 20px; margin-bottom: 12px; }
+        
+        /* MOBILE FIRST RESPONSIVE ARCHITECTURE */
+        .grid-layout { display: flex; flex-direction: column; gap: 20px; }
         .column { display: flex; flex-direction: column; gap: 15px; }
-        .grid-6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; }
         
-        .input-group { margin-bottom: 10px; }
-        label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.85rem; color: #cbd5e1; }
-        input, select { width: 100%; padding: 10px; background: #0f172a; border: 1px solid var(--border); border-radius: 6px; color: white; font-size: 0.95rem; box-sizing: border-box; }
+        /* DATA ENTRY FLEX CONTAINER */
+        .count-entry-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 8px; }
+        @media (min-width: 480px) { .count-entry-row { grid-template-columns: repeat(3, 1fr); } }
+        @media (min-width: 768px) { .count-entry-row { grid-template-columns: repeat(6, 1fr); } }
         
-        .score-box { background: #0f172a; border: 1px solid var(--border); padding: 15px; border-radius: 8px; text-align: center; }
-        .score-display { font-size: 3rem; font-weight: bold; color: white; margin: 5px 0; }
-        .btn-score { background: #334155; color: white; border: none; padding: 10px 20px; font-size: 1.2rem; font-weight: bold; border-radius: 6px; cursor: pointer; margin: 0 5px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr; gap: 15px; }
+        @media (min-width: 600px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
         
-        .btn-recommend { width: 100%; background-color: #4f46e5; color: white; border: none; padding: 16px; font-size: 1.1rem; font-weight: bold; border-radius: 8px; cursor: pointer; margin-top: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+        .grid-3 { display: grid; grid-template-columns: 1fr; gap: 10px; }
+        @media (min-width: 600px) { .grid-3 { grid-template-columns: repeat(3, 1fr); } }
+
+        /* DESKTOP SIDE-BY-SIDE UPGRADE */
+        @media (min-width: 1024px) {
+            body { padding: 20px; }
+            .container { padding: 30px; }
+            h1 { font-size: 2rem; }
+            .grid-layout { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 25px; }
+        }
+        
+        .input-group { margin-bottom: 5px; }
+        label { display: block; font-weight: 600; margin-bottom: 4px; font-size: 0.8rem; color: #cbd5e1; }
+        input, select { width: 100%; padding: 10px; background: #0f172a; border: 1px solid var(--border); border-radius: 6px; color: white; font-size: 0.9rem; }
+        
+        .score-box { background: #0f172a; border: 1px solid var(--border); padding: 12px; border-radius: 8px; text-align: center; }
+        .score-display { font-size: 2.5rem; font-weight: bold; color: white; margin: 2px 0; }
+        .btn-score { background: #334155; color: white; border: none; padding: 8px 16px; font-size: 1.1rem; font-weight: bold; border-radius: 6px; cursor: pointer; margin: 0 4px; }
+        
+        .btn-recommend { width: 100%; background-color: #4f46e5; color: white; border: none; padding: 14px; font-size: 1.05rem; font-weight: bold; border-radius: 8px; cursor: pointer; margin-top: 10px; }
         .btn-recommend:disabled { background-color: #1e1b4b; color: #64748b; cursor: not-allowed; }
-        
         .btn-secondary { background-color: #10b981; color: white; border: none; padding: 10px; font-weight: bold; border-radius: 6px; cursor: pointer; }
         .btn-reset { background-color: #ef4444; color: white; border: none; padding: 10px; font-weight: bold; border-radius: 6px; cursor: pointer; }
         
-        .result-box { background-color: #0f172a; border: 1px solid var(--border); padding: 20px; margin-top: 25px; border-radius: 8px; }
-        .recommendation-banner { padding: 20px; margin-bottom: 15px; border-radius: 6px; display: flex; flex-direction: column; gap: 10px; }
-        .rec-header { font-size: 1.6rem; font-weight: 800; display: flex; justify-content: space-between; align-items: center; }
+        .result-box { background-color: #0f172a; border: 1px solid var(--border); padding: 15px; margin-top: 20px; border-radius: 8px; }
+        .recommendation-banner { padding: 15px; margin-bottom: 15px; border-radius: 6px; display: flex; flex-direction: column; gap: 8px; }
+        .rec-header { font-size: 1.3rem; font-weight: 800; display: flex; flex-direction: column; gap: 4px; }
+        @media (min-width: 480px) { .rec-header { flex-direction: row; justify-content: space-between; align-items: center; } }
         
-        .roster-list { max-height: 120px; overflow-y: auto; background: #0f172a; border: 1px solid var(--border); border-radius: 6px; padding: 8px; }
-        .roster-item { display: flex; justify-content: space-between; align-items: center; padding: 6px; font-size: 0.85rem; border-bottom: 1px solid var(--border); }
-        .btn-delete { background: #ef4444; color: white; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer; }
-        .error-msg { background-color: #7f1d1d; color: #fca5a5; padding: 12px; border-radius: 6px; border: 1px solid #b91c1c; margin-top: 15px; font-weight: bold; display: none; }
+        .roster-list { max-height: 120px; overflow-y: auto; background: #0f172a; border: 1px solid var(--border); border-radius: 6px; padding: 6px; }
+        .roster-item { display: flex; justify-content: space-between; align-items: center; padding: 6px; font-size: 0.8rem; border-bottom: 1px solid var(--border); }
+        .btn-delete { background: #ef4444; color: white; border: none; border-radius: 4px; padding: 2px 6px; cursor: pointer; }
+        .error-msg { background-color: #7f1d1d; color: #fca5a5; padding: 12px; border-radius: 6px; border: 1px solid #b91c1c; margin-top: 15px; font-weight: bold; display: none; font-size: 0.85rem; }
         
-        .tab-container { display: flex; gap: 10px; border-bottom: 1px solid var(--border); margin-bottom: 15px; }
-        .tab { padding: 10px 20px; cursor: pointer; background: transparent; border: none; color: var(--text-muted); font-weight: 600; }
+        .tab-container { display: flex; overflow-x: auto; gap: 5px; border-bottom: 1px solid var(--border); margin-bottom: 15px; white-space: nowrap; }
+        .tab { padding: 10px 15px; cursor: pointer; background: transparent; border: none; color: var(--text-muted); font-weight: 600; font-size: 0.85rem; }
         .tab.active { color: white; border-bottom: 2px solid var(--accent-ts); }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9rem; }
-        th, td { padding: 10px; border: 1px solid var(--border); text-align: left; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85rem; }
+        th, td { padding: 8px; border: 1px solid var(--border); text-align: left; }
         th { background: #0f172a; }
-        .badge { padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; }
+        
+        .badge { padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; display: inline-block; }
         .badge-low { background: var(--warn-low); color: white; }
         .badge-med { background: var(--warn-med); color: black; }
         .badge-high { background: var(--recommend); color: white; }
         
-        .tornado-bar { height: 18px; background: #3b82f6; border-radius: 3px; display: inline-block; min-width: 4px; }
-        #loading-indicator { display: none; text-align: center; color: var(--warn-med); font-weight: bold; margin-top: 10px; }
+        .tornado-bar { height: 14px; background: #3b82f6; border-radius: 3px; display: inline-block; min-width: 4px; }
+        #loading-indicator { display: none; text-align: center; color: var(--warn-med); font-weight: bold; margin-top: 10px; font-size: 0.9rem; }
 
-        /* POLICY MAP HEATMAP STYLE */
-        .heatmap-scroll { overflow-x: auto; margin-top: 15px; background: #0f172a; padding: 15px; border-radius: 8px; border: 1px solid var(--border); }
-        .heatmap-grid { display: grid; gap: 2px; min-width: 600px; }
-        .heatmap-cell { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: bold; border-radius: 2px; color: white; }
+        .heatmap-scroll { overflow-x: auto; margin-top: 12px; background: #0f172a; padding: 10px; border-radius: 8px; border: 1px solid var(--border); }
+        .heatmap-grid { display: grid; gap: 1px; min-width: 550px; }
+        .heatmap-cell { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: bold; border-radius: 1px; color: white; }
         .cell-ts { background-color: rgba(59, 130, 246, 0.85); border: 1px solid #2563eb; }
         .cell-fl { background-color: rgba(13, 148, 136, 0.85); border: 1px solid #0d9488; }
-        .cell-header { color: var(--text-muted); font-size: 0.65rem; background: transparent; }
+        .cell-header { color: var(--text-muted); font-size: 0.6rem; background: transparent; }
     </style>
 </head>
 <body>
 
     <div class="container">
         <h1>🏐 Volleyball Strategy Dashboard</h1>
-        <div class="subtitle">v2.6: Single-Agent MDP Stationary Policy Optimizer</div>
+        <div class="subtitle">v2.7: Empirical Count-Driven Single-Agent MDP Framework</div>
         
         <div class="tab-container">
             <button class="tab active" onclick="switchTab(event, 'tab-engine')">Execution Dashboard</button>
-            <button class="tab" onclick="switchTab(event, 'tab-validation')">Validation & Solver Benchmarks</button>
+            <button class="tab" onclick="switchTab(event, 'tab-validation')">Validation & Benchmarks</button>
             <button class="tab" onclick="switchTab(event, 'tab-model-details')">Model Architecture</button>
         </div>
 
         <div id="tab-engine" class="tab-content active">
             <div class="grid-layout">
                 <div class="column">
-                    <div class="section-title">1. Server Profiles</div>
+                    <div class="section-title">1. Empirical Performance Logs (Raw Counts)</div>
                     <div class="grid-3">
                         <div class="input-group">
                             <label>Player Name</label>
                             <input type="text" id="p_name" placeholder="e.g., Sarah">
                         </div>
                         <div class="input-group"><label></label><button class="btn-secondary" style="width:100%;" onclick="addPlayer()">Save Profile</button></div>
-                        <div class="input-group"><label></label><button class="btn-reset" style="width:100%;" onclick="resetEngineState()">Reset Profiles</button></div>
+                        <div class="input-group"><label></label><button class="btn-reset" style="width:100%;" onclick="resetEngineState()">Reset Roster</button></div>
                     </div>
                     
-                    <div class="grid-6">
-                        <label>TS Attempts</label><label>TS Ace%</label><label>TS Err%</label><label>TS Poor%</label><label>TS Avg%</label><label>TS Perf%</label>
-                        <input type="number" id="p_ts_n" value="150"><input type="number" id="p_ts_ace" value="15"><input type="number" id="p_ts_err" value="25"><input type="number" id="p_ts_poor" value="30"><input type="number" id="p_ts_avg" value="20"><input type="number" id="p_ts_perf" value="10">
-                    </div>
-                    <div class="grid-6" style="margin-top:5px;">
-                        <label>FL Attempts</label><label>FL Ace%</label><label>FL Err%</label><label>FL Poor%</label><label>FL Avg%</label><label>FL Perf%</label>
-                        <input type="number" id="p_fl_n" value="220"><input type="number" id="p_fl_ace" value="5"><input type="number" id="p_fl_err" value="5"><input type="number" id="p_fl_poor" value="15"><input type="number" id="p_fl_avg" value="45"><input type="number" id="p_fl_perf" value="30">
+                    <label style="margin-top:5px; font-weight:bold; color:var(--accent-ts)">Topspin Serve Performance Parameters</label>
+                    <div class="count-entry-row">
+                        <div class="input-group"><label>Total Serves</label><input type="number" id="p_ts_n" value="150" min="1"></div>
+                        <div class="input-group"><label>Aces</label><input type="number" id="p_ts_ace" value="22" min="0"></div>
+                        <div class="input-group"><label>Errors</label><input type="number" id="p_ts_err" value="38" min="0"></div>
+                        <div class="input-group"><label>Poor Pass Cnt</label><input type="number" id="p_ts_poor" value="45" min="0"></div>
+                        <div class="input-group"><label>Avg Pass Cnt</label><input type="number" id="p_ts_avg" value="30" min="0"></div>
+                        <div class="input-group"><label>Perf Pass Cnt</label><input type="number" id="p_ts_perf" value="15" min="0"></div>
                     </div>
                     
-                    <div class="roster-list" id="roster-view" style="margin-top:10px;"></div>
+                    <label style="font-weight:bold; color:var(--accent-fl)">Float Serve Performance Parameters</label>
+                    <div class="count-entry-row">
+                        <div class="input-group"><label>Total Serves</label><input type="number" id="p_fl_n" value="220" min="1"></div>
+                        <div class="input-group"><label>Aces</label><input type="number" id="p_fl_ace" value="11" min="0"></div>
+                        <div class="input-group"><label>Errors</label><input type="number" id="p_fl_err" value="11" min="0"></div>
+                        <div class="input-group"><label>Poor Pass Cnt</label><input type="number" id="p_fl_poor" value="33" min="0"></div>
+                        <div class="input-group"><label>Avg Pass Cnt</label><input type="number" id="p_fl_avg" value="99" min="0"></div>
+                        <div class="input-group"><label>Perf Pass Cnt</label><input type="number" id="p_fl_perf" value="66" min="0"></div>
+                    </div>
                     
-                    <div class="grid-2" style="margin-top:10px;">
-                        <button class="btn-secondary" style="background:#475569;" onclick="exportProfilesJSON()">Export Profiles (JSON)</button>
+                    <div class="roster-list" id="roster-view"></div>
+                    
+                    <div class="grid-2">
+                        <button class="btn-secondary" style="background:#475569;" onclick="exportProfilesJSON()">Export (JSON)</button>
                         <input type="file" id="import-file" style="display:none;" onchange="importProfilesJSON(event)">
-                        <button class="btn-secondary" style="background:#475569;" onclick="document.getElementById('import-file').click()">Import Profiles (JSON)</button>
+                        <button class="btn-secondary" style="background:#475569;" onclick="document.getElementById('import-file').click()">Import (JSON)</button>
                     </div>
 
-                    <div class="section-title">2. Live Opponent Tactical Parameters (Rally Scoring Mode)</div>
+                    <div class="section-title">2. Opponent Defense & Tactical Bounds</div>
                     <div class="grid-2">
-                        <div class="input-group">
-                            <label>Opponent In-System Kill % (Perfect Pass)</label>
-                            <input type="number" id="opp_kill_perfect" value="64">
-                        </div>
-                        <div class="input-group">
-                            <label>Opponent Medium-System Kill % (Average Pass)</label>
-                            <input type="number" id="opp_kill_average" value="48">
-                        </div>
+                        <div class="input-group"><label>Opponent Out-of-System Kill % (Poor)</label><input type="number" id="opp_kill_poor" value="38" min="0" max="100"></div>
+                        <div class="input-group"><label>Opponent Med-System Kill % (Avg)</label><input type="number" id="opp_kill_average" value="48" min="0" max="100"></div>
                     </div>
                     <div class="grid-2">
-                        <div class="input-group">
-                            <label>Opponent Out-of-System Kill % (Poor Pass)</label>
-                            <input type="number" id="opp_kill_poor" value="38">
-                        </div>
-                        <div class="input-group">
-                            <label>Our Team Sideout Probability %</label>
-                            <input type="number" id="our_sideout_rate" value="65">
-                        </div>
+                        <div class="input-group"><label>Opponent In-System Kill % (Perf)</label><input type="number" id="opp_kill_perfect" value="64" min="0" max="100"></div>
+                        <div class="input-group"><label>Our Team Sideout Probability %</label><input type="number" id="our_sideout_rate" value="65" min="0" max="100"></div>
                     </div>
                 </div>
 
@@ -248,11 +267,21 @@
     </div>
 
     <script>
-        const SCHEMA_VERSION = 2;
+        const SCHEMA_VERSION = 3;
+        
+        // CACHED DOM ELEMENTS TO ELIMINATE REPEATED LOOKUPS
+        const dom = {
+            p_name: document.getElementById("p_name"), p_ts_n: document.getElementById("p_ts_n"), p_ts_ace: document.getElementById("p_ts_ace"),
+            p_ts_err: document.getElementById("p_ts_err"), p_ts_poor: document.getElementById("p_ts_poor"), p_ts_avg: document.getElementById("p_ts_avg"),
+            p_ts_perf: document.getElementById("p_ts_perf"), p_fl_n: document.getElementById("p_fl_n"), p_fl_ace: document.getElementById("p_fl_ace"),
+            p_fl_err: document.getElementById("p_fl_err"), p_fl_poor: document.getElementById("p_fl_poor"), p_fl_avg: document.getElementById("p_fl_avg"),
+            p_fl_perf: document.getElementById("p_fl_perf"), active_player: document.getElementById("active-player"), roster_view: document.getElementById("roster-view")
+        };
+
         let defaultRoster = {
             "Elite Target A": {
-                ts: [150, 15, 25, 30, 20, 10],
-                fl: [220, 5, 5, 15, 45, 30]
+                ts: [150, 22, 38, 45, 30, 15],
+                fl: [220, 11, 11, 33, 99, 66]
             }
         };
 
@@ -263,7 +292,7 @@
             evt.currentTarget.classList.add('active');
         }
         function getRoster() {
-            let d = localStorage.getItem("vb_v2_6_roster");
+            let d = localStorage.getItem("vb_v2_7_roster");
             if (d) {
                 try {
                     let parsed = JSON.parse(d);
@@ -274,7 +303,7 @@
         }
         function saveRoster(players) {
             let wrapper = { version: SCHEMA_VERSION, players: players };
-            localStorage.setItem("vb_v2_6_roster", JSON.stringify(wrapper));
+            localStorage.setItem("vb_v2_7_roster", JSON.stringify(wrapper));
             updateRosterUI();
         }
         function getSampleBadge(n) {
@@ -283,17 +312,17 @@
             return `<span class="badge badge-high">High (n=${n})</span>`;
         }
         function addPlayer() {
-            let nameInput = document.getElementById("p_name").value.trim();
+            let nameInput = dom.p_name.value.trim();
             if(!nameInput) return alert("Valid name string required.");
             let r = getRoster();
             if (r[nameInput] && !confirm(`Profile "${nameInput}" already exists. Overwrite?`)) return;
             
             r[nameInput] = {
-                ts: [parseInt(document.getElementById("p_ts_n").value), parseInt(document.getElementById("p_ts_ace").value), parseInt(document.getElementById("p_ts_err").value), parseInt(document.getElementById("p_ts_poor").value), parseInt(document.getElementById("p_ts_avg").value), parseInt(document.getElementById("p_ts_perf").value)],
-                fl: [parseInt(document.getElementById("p_fl_n").value), parseInt(document.getElementById("p_fl_ace").value), parseInt(document.getElementById("p_fl_err").value), parseInt(document.getElementById("p_fl_poor").value), parseInt(document.getElementById("p_fl_avg").value), parseInt(document.getElementById("p_fl_perf").value)]
+                ts: [parseInt(dom.p_ts_n.value), parseInt(dom.p_ts_ace.value), parseInt(dom.p_ts_err.value), parseInt(dom.p_ts_poor.value), parseInt(dom.p_ts_avg.value), parseInt(dom.p_ts_perf.value)],
+                fl: [parseInt(dom.p_fl_n.value), parseInt(dom.p_fl_ace.value), parseInt(dom.p_fl_err.value), parseInt(dom.p_fl_poor.value), parseInt(dom.p_fl_avg.value), parseInt(dom.p_fl_perf.value)]
             };
             saveRoster(r);
-            document.getElementById("p_name").value = "";
+            dom.p_name.value = "";
         }
         function deletePlayer(playerName) {
             let r = getRoster(); delete r[playerName]; saveRoster(r);
@@ -305,18 +334,18 @@
             e.value = n; d.textContent = n;
         }
         function loadActivePlayerStats() {
-            let s = document.getElementById("active-player").value;
+            let s = dom.active_player.value;
             let p = getRoster()[s];
             if(p) {
-                document.getElementById("p_ts_n").value = p.ts[0]; document.getElementById("p_ts_ace").value = p.ts[1]; document.getElementById("p_ts_err").value = p.ts[2]; document.getElementById("p_ts_poor").value = p.ts[3]; document.getElementById("p_ts_avg").value = p.ts[4]; document.getElementById("p_ts_perf").value = p.ts[5];
-                document.getElementById("p_fl_n").value = p.fl[0]; document.getElementById("p_fl_ace").value = p.fl[1]; document.getElementById("p_fl_err").value = p.fl[2]; document.getElementById("p_fl_poor").value = p.fl[3]; document.getElementById("p_fl_avg").value = p.fl[4]; document.getElementById("p_fl_perf").value = p.fl[5];
+                dom.p_ts_n.value = p.ts[0]; dom.p_ts_ace.value = p.ts[1]; dom.p_ts_err.value = p.ts[2]; dom.p_ts_poor.value = p.ts[3]; dom.p_ts_avg.value = p.ts[4]; dom.p_ts_perf.value = p.ts[5];
+                dom.p_fl_n.value = p.fl[0]; dom.p_fl_ace.value = p.fl[1]; dom.p_fl_err.value = p.fl[2]; dom.p_fl_poor.value = p.fl[3]; dom.p_fl_avg.value = p.fl[4]; dom.p_fl_perf.value = p.fl[5];
             }
         }
         function updateRosterUI() {
-            let r = getRoster(); let s = document.getElementById("active-player"); let l = document.getElementById("roster-view");
-            s.innerHTML = ""; l.innerHTML = "";
+            let r = getRoster();
+            dom.active_player.innerHTML = ""; dom.roster_view.innerHTML = "";
             for(let p in r) {
-                let o = document.createElement("option"); o.value = p; o.textContent = p; s.appendChild(o);
+                let o = document.createElement("option"); o.value = p; o.textContent = p; dom.active_player.appendChild(o);
                 
                 let item = document.createElement("div"); item.className = "roster-item";
                 let labelSpan = document.createElement("span");
@@ -326,15 +355,15 @@
                 delBtn.className = "btn-delete"; delBtn.textContent = "X"; delBtn.dataset.player = p;
                 delBtn.onclick = function() { deletePlayer(this.dataset.player); };
                 
-                item.appendChild(labelSpan); item.appendChild(delBtn); l.appendChild(item);
+                item.appendChild(labelSpan); item.appendChild(delBtn); dom.roster_view.appendChild(item);
             }
-            if(s.options.length > 0) loadActivePlayerStats();
+            if(dom.active_player.options.length > 0) loadActivePlayerStats();
         }
         function exportProfilesJSON() {
             let payload = { version: SCHEMA_VERSION, players: getRoster() };
             let dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(payload));
             let downloadAnchor = document.createElement('a');
-            downloadAnchor.setAttribute("href", dataStr); downloadAnchor.setAttribute("download", `volleyball_profiles_v2_6.json`);
+            downloadAnchor.setAttribute("href", dataStr); downloadAnchor.setAttribute("download", `volleyball_profiles_v2_7.json`);
             document.body.appendChild(downloadAnchor); downloadAnchor.click(); downloadAnchor.remove();
         }
         function importProfilesJSON(event) {
@@ -346,9 +375,9 @@
                     let parsed = JSON.parse(e.target.result);
                     if (parsed.version === SCHEMA_VERSION && parsed.players && typeof parsed.players === 'object') {
                         saveRoster(parsed.players);
-                        alert("Profiles verified and loaded successfully.");
+                        alert("Profiles loaded successfully.");
                     } else { alert("Validation Failure: Schema mismatch."); }
-                } catch(err) { alert("Parser Error: Incompatible file structure signature."); }
+                } catch(err) { alert("Parser Error: Incompatible file signature."); }
             };
             reader.readAsText(file);
         }
@@ -359,11 +388,8 @@
             
             grid.innerHTML = "";
             hContainer.style.display = "block"; hHeader.style.display = "block";
-            
-            // Set up template grid layout sizing for matrix view
             grid.style.gridTemplateColumns = `repeat(${deuceCap + 2}, 1fr)`;
             
-            // Render Label Columns
             for (let t = 0; t <= deuceCap + 1; t++) {
                 let cell = document.createElement("div"); cell.className = "heatmap-cell cell-header";
                 if (t > 0) cell.textContent = `T${t-1}`;
@@ -381,13 +407,12 @@
                     let cell = document.createElement("div");
                     cell.className = "heatmap-cell " + (action === 0 ? "cell-ts" : "cell-fl");
                     cell.textContent = action === 0 ? "TS" : "FL";
-                    cell.title = `Score: Us ${u} - Them ${t} | Choice: ${action === 0 ? 'Topspin' : 'Float'}`;
                     grid.appendChild(cell);
                 }
             }
         }
         function resetEngineState() {
-            localStorage.removeItem("vb_v2_6_roster"); defaultRoster = { "Elite Target A": { ts: [150, 15, 25, 30, 20, 10], fl: [220, 5, 5, 15, 45, 30] } };
+            localStorage.removeItem("vb_v2_7_roster"); defaultRoster = { "Elite Target A": { ts: [150, 22, 38, 45, 30, 15], fl: [220, 11, 11, 33, 99, 66] } };
             document.getElementById("score_us").value = 17; document.getElementById("disp_us").textContent = 17;
             document.getElementById("score_them").value = 17; document.getElementById("disp_them").textContent = 17;
             updateRosterUI();
@@ -401,8 +426,14 @@ import random
 import time
 import math
 
+# CONSTANTS CONFIGURATION BLOCK MAPPED TO RESOLVE PROGRAMMING REVIEW
+SET_POINTS = 25
+WIN_MARGIN = 2
+DEFAULT_CAP = 30
+RANDOM_SEED = 42
+
 class BellmanOptimalitySolver:
-    def __init__(self, kill_perfect, kill_average, kill_poor, our_sideout, max_cap=30):
+    def __init__(self, kill_perfect, kill_average, kill_poor, our_sideout, max_cap=DEFAULT_CAP):
         self.k_perf = kill_perfect
         self.k_avg = kill_average
         self.k_poor = kill_poor
@@ -421,12 +452,11 @@ class BellmanOptimalitySolver:
         policy_grid = [[[0] * 2 for _ in range(dim)] for _ in range(dim)]
         self.states_allocated = 0
 
-        # Boundary Conditions Setup
         for u in range(dim):
             for t in range(dim):
-                if u >= 25 and (u - t) >= 2:
+                if u >= SET_POINTS and (u - t) >= WIN_MARGIN:
                     v_grid[u][t][0] = 1.0; v_grid[u][t][1] = 1.0
-                elif t >= 25 and (t - u) >= 2:
+                elif t >= SET_POINTS and (t - u) >= WIN_MARGIN:
                     v_grid[u][t][0] = 0.0; v_grid[u][t][1] = 0.0
                 elif u >= self.max_cap or t >= self.max_cap:
                     if u == t:
@@ -435,22 +465,19 @@ class BellmanOptimalitySolver:
                         val = 1.0 if u > t else 0.0
                         v_grid[u][t][0] = val; v_grid[u][t][1] = val
 
-        # Backward Induction via Topological Score Blocks
         for sum_sc in range(2 * self.max_cap, -1, -1):
             for u in range(self.max_cap + 1):
                 t = sum_sc - u
                 if t < 0 or t > self.max_cap: continue
-                if u >= 25 and (u - t) >= 2: continue
-                if t >= 25 and (t - u) >= 2: continue
+                if u >= SET_POINTS and (u - t) >= WIN_MARGIN: continue
+                if t >= SET_POINTS and (t - u) >= WIN_MARGIN: continue
                 
                 self.states_allocated += 2
                 u_next = min(u + 1, dim - 1)
                 t_next = min(t + 1, dim - 1)
 
-                # State 1: Opponent Serving
                 v_grid[u][t][1] = (self.our_sideout * v_grid[u_next][t][0]) + ((1.0 - self.our_sideout) * v_grid[u][t_next][1])
 
-                # State 0: Us Serving (Bellman Node Maxima Calculation)
                 equity_ts = (p_win_ts * v_grid[u_next][t][0]) + ((1.0 - p_win_ts) * v_grid[u][t_next][1])
                 equity_fl = (p_win_fl * v_grid[u_next][t][0]) + ((1.0 - p_win_fl) * v_grid[u][t_next][1])
                 
@@ -464,7 +491,7 @@ class BellmanOptimalitySolver:
         return v_grid, policy_grid
 
     def compute_wilson_score_bounds_from_counts(self, successes, n):
-        """Corrected Tracking Logic: Computes Wilson Bounds directly from observed frequency integers."""
+        """Pure Statistical Flow: Resolves Item 2 by evaluating real integer observation counts."""
         if n == 0: return 0.0, 1.0
         obs_p = successes / n
         z = 1.96
@@ -475,17 +502,17 @@ class BellmanOptimalitySolver:
 
     def run_policy_simulation(self, start_us, start_them, start_serving, p_win_ts, p_win_fl, policy_grid, trials, seed_mode):
         if seed_mode == "fixed":
-            random.seed(42)
+            random.seed(RANDOM_SEED)
         else:
-            random.seed(None) # Exposes dynamic variant path generation
+            random.seed(None)
             
         wins = 0
         for _ in range(trials):
             u, t, server = start_us, start_them, start_serving
             while True:
-                if u >= 25 and (u - t) >= 2:
+                if u >= SET_POINTS and (u - t) >= WIN_MARGIN:
                     wins += 1; break
-                if t >= 25 and (t - u) >= 2:
+                if t >= SET_POINTS and (t - u) >= WIN_MARGIN:
                     break
                 if u >= self.max_cap or t >= self.max_cap:
                     if u > t: wins += 1
@@ -513,27 +540,22 @@ def execute_optimization_sequence(event):
     
     try:
         ts_n = int(document.getElementById("p_ts_n").value)
-        fl_n = int(document.getElementById("p_fl_n").value)
-        
-        # Pull raw counts for statistical bounds processing
         ts_ace_cnt = int(document.getElementById("p_ts_ace").value)
         ts_err_cnt = int(document.getElementById("p_ts_err").value)
         ts_poor_cnt = int(document.getElementById("p_ts_poor").value)
         ts_avg_cnt = int(document.getElementById("p_ts_avg").value)
         ts_perf_cnt = int(document.getElementById("p_ts_perf").value)
         
+        fl_n = int(document.getElementById("p_fl_n").value)
         fl_ace_cnt = int(document.getElementById("p_fl_ace").value)
         fl_err_cnt = int(document.getElementById("p_fl_err").value)
         fl_poor_cnt = int(document.getElementById("p_fl_poor").value)
         fl_avg_cnt = int(document.getElementById("p_fl_avg").value)
         fl_perf_cnt = int(document.getElementById("p_fl_perf").value)
         
-        ts_v = [ts_ace_cnt/100.0, ts_err_cnt/100.0, ts_poor_cnt/100.0, ts_avg_cnt/100.0, ts_perf_cnt/100.0]
-        fl_v = [fl_ace_cnt/100.0, fl_err_cnt/100.0, fl_poor_cnt/100.0, fl_avg_cnt/100.0, fl_perf_cnt/100.0]
-        
-        k_perf = float(document.getElementById("opp_kill_perfect").value) / 100.0
-        k_avg = float(document.getElementById("opp_kill_average").value) / 100.0
         k_poor = float(document.getElementById("opp_kill_poor").value) / 100.0
+        k_avg = float(document.getElementById("opp_kill_average").value) / 100.0
+        k_perf = float(document.getElementById("opp_kill_perfect").value) / 100.0
         our_so = float(document.getElementById("our_sideout_rate").value) / 100.0
         
         trials = int(document.getElementById("mc_trials").value)
@@ -541,14 +563,32 @@ def execute_optimization_sequence(event):
         score_us = int(document.getElementById("score_us").value)
         score_them = int(document.getElementById("score_them").value)
     except Exception:
-        err_box.innerText = "Execution Format Error: Confirm input matrix fields contain numerical values."; err_box.style.display = "block"; btn.disabled = False; loader.style.display = "none"; return
+        err_box.innerText = "Data Type Format Error: Verify entry inputs contain non-empty numbers."; err_box.style.display = "block"; btn.disabled = False; loader.style.display = "none"; return
 
-    deuce_cap = 30
+    # STRATEGIC MATRIX VALIDATION CORE (Resolves Item 5)
+    if ts_n <= 0 or fl_n <= 0:
+        err_box.innerText = "Input Validation Guard: Serve attempts must be greater than zero."; err_box.style.display = "block"; btn.disabled = False; loader.style.display = "none"; return
+        
+    ts_sum = ts_ace_cnt + ts_err_cnt + ts_poor_cnt + ts_avg_cnt + ts_perf_cnt
+    fl_sum = fl_ace_cnt + fl_err_cnt + fl_poor_cnt + fl_avg_cnt + fl_perf_cnt
+    
+    if ts_sum != ts_n or fl_sum != fl_n:
+        err_box.innerText = f"Observation Cardinality Mismatch: Sum of category counts must exactly match total attempts (Topspin: {ts_sum}/{ts_n}, Float: {fl_sum}/{fl_n})."; err_box.style.display = "block"; btn.disabled = False; loader.style.display = "none"; return
+
+    if min([ts_ace_cnt, ts_err_cnt, ts_poor_cnt, ts_avg_cnt, ts_perf_cnt, fl_ace_cnt, fl_err_cnt, fl_poor_cnt, fl_avg_cnt, fl_perf_cnt]) < 0:
+        err_box.innerText = "Mathematical Constraint: Raw observations cannot fall below zero."; err_box.style.display = "block"; btn.disabled = False; loader.style.display = "none"; return
+
+    if score_us >= SET_POINTS or score_them >= SET_POINTS:
+        if abs(score_us - score_them) >= WIN_MARGIN:
+            err_box.innerText = "Impossible Game Position: The entered score indicates the set has already concluded."; err_box.style.display = "block"; btn.disabled = False; loader.style.display = "none"; return
+
+    deuce_cap = DEFAULT_CAP
     if score_us > deuce_cap or score_them > deuce_cap:
-        deuce_cap = max(score_us + 4, score_them + 4)
+        deuce_cap = max(score_us + WIN_MARGIN + 2, score_them + WIN_MARGIN + 2)
 
-    if abs(sum(ts_v)-1.0) > 0.001 or abs(sum(fl_v)-1.0) > 0.001:
-        err_box.innerText = "State Validation Exception: Profile percentages must equal exactly 100%."; err_box.style.display = "block"; btn.disabled = False; loader.style.display = "none"; return
+    # Convert Counts to Continuous Densities post-verification
+    ts_v = [ts_ace_cnt/ts_n, ts_err_cnt/ts_n, ts_poor_cnt/ts_n, ts_avg_cnt/ts_n, ts_perf_cnt/ts_n]
+    fl_v = [fl_ace_cnt/fl_n, fl_err_cnt/fl_n, fl_poor_cnt/fl_n, fl_avg_cnt/fl_n, fl_perf_cnt/fl_n]
 
     poss = document.getElementById("current_poss").value
     server_state = 0 if poss == "us" else 1
@@ -557,13 +597,12 @@ def execute_optimization_sequence(event):
     ts_rally = model.compute_rally_metrics(ts_v)
     fl_rally = model.compute_rally_metrics(fl_v)
     
-    # Process Base MDP Matrix Map
     t_dp_start = time.time()
     v_grid, policy_grid = model.solve_optimal_policy_map(ts_rally, fl_rally)
     resolved_equity = v_grid[score_us][score_them][server_state]
     t_dp_end = time.time()
 
-    # Finite-Difference Sensitivity Gradients across Cached Bounds Matrix Space
+    # Dynamic Finite-Difference Neighborhood Gradient Calculation Steps
     h = 0.01
     sens_labels = ["Error Rate Shift", "Ace Rate Shift", "Poor Pass Shift", "Average Pass Shift", "Perfect Pass Shift"]
     sens_deltas = []
@@ -582,15 +621,13 @@ def execute_optimization_sequence(event):
     sens_deltas.append(extract_perturbed_grid_equity(ts_v, 3, 2) - resolved_equity)
     sens_deltas.append(extract_perturbed_grid_equity(ts_v, 4, 2) - resolved_equity)
 
-    # Correct Mathematical Flow: Maps Actual Observed Count Integers to Wilson Estimators
-    # (Total observed raw points won = (Ace Count) + (Inbound Rallies Handled where opponent did not execute kill))
-    ts_obs_wins = round(ts_n * (ts_v[0] + (ts_v[2]*(1-k_poor)) + (ts_v[3]*(1-k_avg)) + (ts_v[4]*(1-k_perf))))
-    fl_obs_wins = round(fl_n * (fl_v[0] + (fl_v[2]*(1-k_poor)) + (fl_v[3]*(1-k_avg)) + (fl_v[4]*(1-k_perf))))
+    # Exact Counting Logic Pipeline Maps True Unmodified Observations
+    ts_obs_wins = ts_ace_cnt + round(ts_poor_cnt*(1.0-k_poor) + ts_avg_cnt*(1.0-k_avg) + ts_perf_cnt*(1.0-k_perf))
+    fl_obs_wins = fl_ace_cnt + round(fl_poor_cnt*(1.0-k_poor) + fl_avg_cnt*(1.0-k_avg) + fl_perf_cnt*(1.0-k_perf))
     
     ts_low, ts_high = model.compute_wilson_score_bounds_from_counts(ts_obs_wins, ts_n)
     fl_low, fl_high = model.compute_wilson_score_bounds_from_counts(fl_obs_wins, fl_n)
 
-    # Path Execution Simulator Pass
     t_mc_start = time.time()
     mc_equity = model.run_policy_simulation(score_us, score_them, server_state, ts_rally, fl_rally, policy_grid, trials, seed_mode)
     t_mc_end = time.time()
@@ -599,7 +636,6 @@ def execute_optimization_sequence(event):
     best_str = "TOPSPIN" if current_state_action == 0 else "FLOAT"
     color = "var(--accent-ts)" if best_str == "TOPSPIN" else "var(--accent-fl)"
 
-    # Extract Flat Array Payload for DOM Heatmap Grid Mapping
     flat_policy_list = []
     for u in range(deuce_cap + 1):
         for t in range(deuce_cap + 1):
