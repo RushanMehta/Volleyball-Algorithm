@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Volleyball Optimization Framework v2.7</title>
+    <title>Volleyball Optimization Framework v2.8</title>
     
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
@@ -30,11 +30,10 @@
         .subtitle { text-align: center; color: var(--text-muted); margin-bottom: 20px; font-size: 0.9rem; font-style: italic; }
         .section-title { font-size: 1.05rem; font-weight: bold; color: #f1f5f9; border-bottom: 2px solid var(--border); padding-bottom: 6px; margin-top: 20px; margin-bottom: 12px; }
         
-        /* MOBILE FIRST RESPONSIVE ARCHITECTURE */
+        /* RESPONSIVE LAYOUT FLOW */
         .grid-layout { display: flex; flex-direction: column; gap: 20px; }
         .column { display: flex; flex-direction: column; gap: 15px; }
         
-        /* DATA ENTRY FLEX CONTAINER */
         .count-entry-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 8px; }
         @media (min-width: 480px) { .count-entry-row { grid-template-columns: repeat(3, 1fr); } }
         @media (min-width: 768px) { .count-entry-row { grid-template-columns: repeat(6, 1fr); } }
@@ -45,7 +44,6 @@
         .grid-3 { display: grid; grid-template-columns: 1fr; gap: 10px; }
         @media (min-width: 600px) { .grid-3 { grid-template-columns: repeat(3, 1fr); } }
 
-        /* DESKTOP SIDE-BY-SIDE UPGRADE */
         @media (min-width: 1024px) {
             body { padding: 20px; }
             .container { padding: 30px; }
@@ -71,7 +69,7 @@
         .rec-header { font-size: 1.3rem; font-weight: 800; display: flex; flex-direction: column; gap: 4px; }
         @media (min-width: 480px) { .rec-header { flex-direction: row; justify-content: space-between; align-items: center; } }
         
-        .roster-list { max-height: 120px; overflow-y: auto; background: #0f172a; border: 1px solid var(--border); border-radius: 6px; padding: 6px; }
+        .roster-list { max-height: 120px; overflow-y: auto; background: #0f172a; border: 1px solid var(--border); border-radius: 6px; padding: 6px; margin-top: 10px; }
         .roster-item { display: flex; justify-content: space-between; align-items: center; padding: 6px; font-size: 0.8rem; border-bottom: 1px solid var(--border); }
         .btn-delete { background: #ef4444; color: white; border: none; border-radius: 4px; padding: 2px 6px; cursor: pointer; }
         .error-msg { background-color: #7f1d1d; color: #fca5a5; padding: 12px; border-radius: 6px; border: 1px solid #b91c1c; margin-top: 15px; font-weight: bold; display: none; font-size: 0.85rem; }
@@ -106,7 +104,7 @@
 
     <div class="container">
         <h1>🏐 Volleyball Strategy Dashboard</h1>
-        <div class="subtitle">v2.7: Empirical Count-Driven Single-Agent MDP Framework</div>
+        <div class="subtitle">v2.8: Empirical Count-Driven Single-Agent MDP Framework</div>
         
         <div class="tab-container">
             <button class="tab active" onclick="switchTab(event, 'tab-engine')">Execution Dashboard</button>
@@ -118,16 +116,13 @@
             <div class="grid-layout">
                 <div class="column">
                     <div class="section-title">1. Empirical Performance Logs (Raw Counts)</div>
-                    <div class="grid-3">
-                        <div class="input-group">
-                            <label>Player Name</label>
-                            <input type="text" id="p_name" placeholder="e.g., Sarah">
-                        </div>
-                        <div class="input-group"><label></label><button class="btn-secondary" style="width:100%;" onclick="addPlayer()">Save Profile</button></div>
-                        <div class="input-group"><label></label><button class="btn-reset" style="width:100%;" onclick="resetEngineState()">Reset Roster</button></div>
+                    
+                    <div class="input-group" style="max-width: 300px; margin-bottom: 15px;">
+                        <label>Player Profile Name</label>
+                        <input type="text" id="p_name" placeholder="e.g., Sarah">
                     </div>
                     
-                    <label style="margin-top:5px; font-weight:bold; color:var(--accent-ts)">Topspin Serve Performance Parameters</label>
+                    <label style="font-weight:bold; color:var(--accent-ts)">Topspin Serve Performance Parameters</label>
                     <div class="count-entry-row">
                         <div class="input-group"><label>Total Serves</label><input type="number" id="p_ts_n" value="150" min="1"></div>
                         <div class="input-group"><label>Aces</label><input type="number" id="p_ts_ace" value="22" min="0"></div>
@@ -146,6 +141,11 @@
                         <div class="input-group"><label>Avg Pass Cnt</label><input type="number" id="p_fl_avg" value="99" min="0"></div>
                         <div class="input-group"><label>Perf Pass Cnt</label><input type="number" id="p_fl_perf" value="66" min="0"></div>
                     </div>
+
+                    <div class="grid-2" style="margin-top: 10px;">
+                        <button class="btn-secondary" onclick="addPlayer()">Save / Overwrite Profile</button>
+                        <button class="btn-reset" onclick="resetEngineState()">Reset Roster Grid</button>
+                    </div>
                     
                     <div class="roster-list" id="roster-view"></div>
                     
@@ -155,13 +155,13 @@
                         <button class="btn-secondary" style="background:#475569;" onclick="document.getElementById('import-file').click()">Import (JSON)</button>
                     </div>
 
-                    <div class="section-title">2. Opponent Defense & Tactical Bounds</div>
+                    <div class="section-title">2. Opponent Defensive Profile Matrix</div>
                     <div class="grid-2">
-                        <div class="input-group"><label>Opponent Out-of-System Kill % (Poor)</label><input type="number" id="opp_kill_poor" value="38" min="0" max="100"></div>
-                        <div class="input-group"><label>Opponent Med-System Kill % (Avg)</label><input type="number" id="opp_kill_average" value="48" min="0" max="100"></div>
+                        <div class="input-group"><label>Opponent Out-of-System Kill % (Poor Pass)</label><input type="number" id="opp_kill_poor" value="38" min="0" max="100"></div>
+                        <div class="input-group"><label>Opponent Med-System Kill % (Avg Pass)</label><input type="number" id="opp_kill_average" value="48" min="0" max="100"></div>
                     </div>
                     <div class="grid-2">
-                        <div class="input-group"><label>Opponent In-System Kill % (Perf)</label><input type="number" id="opp_kill_perfect" value="64" min="0" max="100"></div>
+                        <div class="input-group"><label>Opponent In-System Kill % (Perfect Pass)</label><input type="number" id="opp_kill_perfect" value="64" min="0" max="100"></div>
                         <div class="input-group"><label>Our Team Sideout Probability %</label><input type="number" id="our_sideout_rate" value="65" min="0" max="100"></div>
                     </div>
                 </div>
@@ -252,16 +252,16 @@
             
             <div class="section-title">Academic & Structural Disclosures</div>
             <blockquote>
-                <strong>1. Semi-Markov Structural Compression Approximation:</strong><br>
-                Real match play propagates across multi-contact sequence variations (Serve $\rightarrow$ Pass $\rightarrow$ Set $\rightarrow$ Attack $\rightarrow$ Dig). This framework uses a high-reliability semi-Markov approximation, compressing intermediate contacts into direct opponent defensive kill capabilities ($\text{Kill}_s$) mapped from entry pass execution.
+                <strong>1. Intermediate Rally Aggregation Approximation:</strong><br>
+                Real match play propagates across complex multi-contact sequences (Serve $\rightarrow$ Pass $\rightarrow$ Set $\rightarrow$ Attack $\rightarrow$ Dig $\rightarrow$ Counter-attack). For computational tractability, this model applies an aggregated rally-win probability approximation, mapping downstream multi-contact transitions directly into localized defensive kill expectations based on initial pass quality metrics.
             </blockquote>
             <blockquote>
                 <strong>2. Stationary Strategy Limitation:</strong><br>
-                This model optimizes a single-agent decision tree against a fixed, stationary opponent policy profile (represented by a static Sideout Rate). In tournament play, opponent response behaviors are dynamic (a two-player stochastic game). 
+                This model assumes a single-agent decision horizon against a fixed, stationary opponent policy profile (represented by a static sideout rate). It does not explicitly account for dynamic opponent adjustments, tactical changes, timeout pressures, or real-time substitutions.
             </blockquote>
             <blockquote>
-                <strong>3. Chain Truncation Bounds:</strong><br>
-                An exact absorbing Markov chain handling infinite deuce extensions contains unlimited dimensions. To remain computationally efficient, this application uses a boundary truncation technique at a structural score cap, resolving tied horizons cleanly without terminal drift.
+                <strong>3. Chain Truncation Bounds & Score Properties:</strong><br>
+                An exact absorbing Markov chain dealing with infinite deuce extensions contains infinite dimensions. This solver implements structural boundary truncation at a score cap, assuming independent event sequences with uniform transition states across all rotation intervals.
             </blockquote>
         </div>
     </div>
@@ -269,7 +269,6 @@
     <script>
         const SCHEMA_VERSION = 3;
         
-        // CACHED DOM ELEMENTS TO ELIMINATE REPEATED LOOKUPS
         const dom = {
             p_name: document.getElementById("p_name"), p_ts_n: document.getElementById("p_ts_n"), p_ts_ace: document.getElementById("p_ts_ace"),
             p_ts_err: document.getElementById("p_ts_err"), p_ts_poor: document.getElementById("p_ts_poor"), p_ts_avg: document.getElementById("p_ts_avg"),
@@ -292,7 +291,7 @@
             evt.currentTarget.classList.add('active');
         }
         function getRoster() {
-            let d = localStorage.getItem("vb_v2_7_roster");
+            let d = localStorage.getItem("vb_v2_8_roster");
             if (d) {
                 try {
                     let parsed = JSON.parse(d);
@@ -303,7 +302,7 @@
         }
         function saveRoster(players) {
             let wrapper = { version: SCHEMA_VERSION, players: players };
-            localStorage.setItem("vb_v2_7_roster", JSON.stringify(wrapper));
+            localStorage.setItem("vb_v2_8_roster", JSON.stringify(wrapper));
             updateRosterUI();
         }
         function getSampleBadge(n) {
@@ -363,7 +362,7 @@
             let payload = { version: SCHEMA_VERSION, players: getRoster() };
             let dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(payload));
             let downloadAnchor = document.createElement('a');
-            downloadAnchor.setAttribute("href", dataStr); downloadAnchor.setAttribute("download", `volleyball_profiles_v2_7.json`);
+            downloadAnchor.setAttribute("href", dataStr); downloadAnchor.setAttribute("download", `volleyball_profiles_v2_8.json`);
             document.body.appendChild(downloadAnchor); downloadAnchor.click(); downloadAnchor.remove();
         }
         function importProfilesJSON(event) {
@@ -412,7 +411,7 @@
             }
         }
         function resetEngineState() {
-            localStorage.removeItem("vb_v2_7_roster"); defaultRoster = { "Elite Target A": { ts: [150, 22, 38, 45, 30, 15], fl: [220, 11, 11, 33, 99, 66] } };
+            localStorage.removeItem("vb_v2_8_roster"); defaultRoster = { "Elite Target A": { ts: [150, 22, 38, 45, 30, 15], fl: [220, 11, 11, 33, 99, 66] } };
             document.getElementById("score_us").value = 17; document.getElementById("disp_us").textContent = 17;
             document.getElementById("score_them").value = 17; document.getElementById("disp_them").textContent = 17;
             updateRosterUI();
@@ -426,7 +425,7 @@ import random
 import time
 import math
 
-# CONSTANTS CONFIGURATION BLOCK MAPPED TO RESOLVE PROGRAMMING REVIEW
+# SYSTEM CONFIGURATION CONSTANTS
 SET_POINTS = 25
 WIN_MARGIN = 2
 DEFAULT_CAP = 30
@@ -491,7 +490,6 @@ class BellmanOptimalitySolver:
         return v_grid, policy_grid
 
     def compute_wilson_score_bounds_from_counts(self, successes, n):
-        """Pure Statistical Flow: Resolves Item 2 by evaluating real integer observation counts."""
         if n == 0: return 0.0, 1.0
         obs_p = successes / n
         z = 1.96
@@ -565,7 +563,6 @@ def execute_optimization_sequence(event):
     except Exception:
         err_box.innerText = "Data Type Format Error: Verify entry inputs contain non-empty numbers."; err_box.style.display = "block"; btn.disabled = False; loader.style.display = "none"; return
 
-    # STRATEGIC MATRIX VALIDATION CORE (Resolves Item 5)
     if ts_n <= 0 or fl_n <= 0:
         err_box.innerText = "Input Validation Guard: Serve attempts must be greater than zero."; err_box.style.display = "block"; btn.disabled = False; loader.style.display = "none"; return
         
@@ -586,7 +583,6 @@ def execute_optimization_sequence(event):
     if score_us > deuce_cap or score_them > deuce_cap:
         deuce_cap = max(score_us + WIN_MARGIN + 2, score_them + WIN_MARGIN + 2)
 
-    # Convert Counts to Continuous Densities post-verification
     ts_v = [ts_ace_cnt/ts_n, ts_err_cnt/ts_n, ts_poor_cnt/ts_n, ts_avg_cnt/ts_n, ts_perf_cnt/ts_n]
     fl_v = [fl_ace_cnt/fl_n, fl_err_cnt/fl_n, fl_poor_cnt/fl_n, fl_avg_cnt/fl_n, fl_perf_cnt/fl_n]
 
@@ -602,7 +598,7 @@ def execute_optimization_sequence(event):
     resolved_equity = v_grid[score_us][score_them][server_state]
     t_dp_end = time.time()
 
-    # Dynamic Finite-Difference Neighborhood Gradient Calculation Steps
+    # FORWARD FINITE DIFFERENCE EVALUATIONS (Corrected Terminology)
     h = 0.01
     sens_labels = ["Error Rate Shift", "Ace Rate Shift", "Poor Pass Shift", "Average Pass Shift", "Perfect Pass Shift"]
     sens_deltas = []
@@ -621,7 +617,6 @@ def execute_optimization_sequence(event):
     sens_deltas.append(extract_perturbed_grid_equity(ts_v, 3, 2) - resolved_equity)
     sens_deltas.append(extract_perturbed_grid_equity(ts_v, 4, 2) - resolved_equity)
 
-    # Exact Counting Logic Pipeline Maps True Unmodified Observations
     ts_obs_wins = ts_ace_cnt + round(ts_poor_cnt*(1.0-k_poor) + ts_avg_cnt*(1.0-k_avg) + ts_perf_cnt*(1.0-k_perf))
     fl_obs_wins = fl_ace_cnt + round(fl_poor_cnt*(1.0-k_poor) + fl_avg_cnt*(1.0-k_avg) + fl_perf_cnt*(1.0-k_perf))
     
@@ -662,7 +657,7 @@ def execute_optimization_sequence(event):
             </table>
         </div>
         <div>
-            <h4>Policy Neighborhood Sensitivity Gradient</h4>
+            <h4>Forward Finite-Difference Sensitivity Metrics</h4>
             <p style='font-size:0.85rem; color:var(--text-muted); margin-bottom:10px;'>Net variance in global state equity per standard 1% baseline profile mutation:</p>
     """
     
@@ -702,7 +697,6 @@ def execute_optimization_sequence(event):
     """
     document.getElementById("output-validation-metrics").innerHTML = val_html
     
-    # Render the dynamic JavaScript Heatmap View Matrix directly
     window.renderPolicyHeatmap(flat_policy_list, deuce_cap)
     
     btn.disabled = False; loader.style.display = "none"
