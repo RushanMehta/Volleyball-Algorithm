@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Volleyball Optimization Framework v2.8</title>
+    <title>Adaptive Volleyball Serve Optimization Engine</title>
     
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
@@ -27,10 +27,9 @@
         
         .container { max-width: 1300px; margin: 0 auto; background: var(--bg-secondary); padding: 15px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
         h1 { color: #f1f5f9; text-align: center; margin-bottom: 5px; font-size: 1.6rem; font-weight: 700; }
-        .subtitle { text-align: center; color: var(--text-muted); margin-bottom: 20px; font-size: 0.9rem; font-style: italic; }
+        .subtitle { text-align: center; color: var(--text-muted); margin-bottom: 20px; font-size: 0.95rem; font-weight: 500; letter-spacing: 0.3px; }
         .section-title { font-size: 1.05rem; font-weight: bold; color: #f1f5f9; border-bottom: 2px solid var(--border); padding-bottom: 6px; margin-top: 20px; margin-bottom: 12px; }
         
-        /* RESPONSIVE LAYOUT FLOW */
         .grid-layout { display: flex; flex-direction: column; gap: 20px; }
         .column { display: flex; flex-direction: column; gap: 15px; }
         
@@ -47,7 +46,7 @@
         @media (min-width: 1024px) {
             body { padding: 20px; }
             .container { padding: 30px; }
-            h1 { font-size: 2rem; }
+            h1 { font-size: 1.9rem; }
             .grid-layout { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 25px; }
         }
         
@@ -103,8 +102,8 @@
 <body>
 
     <div class="container">
-        <h1>🏐 Volleyball Strategy Dashboard</h1>
-        <div class="subtitle">v2.8: Empirical Count-Driven Single-Agent MDP Framework</div>
+        <h1>Volleyball Serve Optimization Suite</h1>
+        <div class="subtitle" style="color: #60a5fa;">Adaptive Volleyball Serve Optimization via Dynamic Programming and Empirical Performance Models</div>
         
         <div class="tab-container">
             <button class="tab active" onclick="switchTab(event, 'tab-engine')">Execution Dashboard</button>
@@ -115,14 +114,14 @@
         <div id="tab-engine" class="tab-content active">
             <div class="grid-layout">
                 <div class="column">
-                    <div class="section-title">1. Empirical Performance Logs (Raw Counts)</div>
+                    <div class="section-title">1. Empirical Performance Logs (Raw Data Tracking)</div>
                     
                     <div class="input-group" style="max-width: 300px; margin-bottom: 15px;">
                         <label>Player Profile Name</label>
                         <input type="text" id="p_name" placeholder="e.g., Sarah">
                     </div>
                     
-                    <label style="font-weight:bold; color:var(--accent-ts)">Topspin Serve Performance Parameters</label>
+                    <label style="font-weight:bold; color:var(--accent-ts)">Topspin Serve Matrix</label>
                     <div class="count-entry-row">
                         <div class="input-group"><label>Total Serves</label><input type="number" id="p_ts_n" value="150" min="1"></div>
                         <div class="input-group"><label>Aces</label><input type="number" id="p_ts_ace" value="22" min="0"></div>
@@ -132,7 +131,7 @@
                         <div class="input-group"><label>Perf Pass Cnt</label><input type="number" id="p_ts_perf" value="15" min="0"></div>
                     </div>
                     
-                    <label style="font-weight:bold; color:var(--accent-fl)">Float Serve Performance Parameters</label>
+                    <label style="font-weight:bold; color:var(--accent-fl)">Float Serve Matrix</label>
                     <div class="count-entry-row">
                         <div class="input-group"><label>Total Serves</label><input type="number" id="p_fl_n" value="220" min="1"></div>
                         <div class="input-group"><label>Aces</label><input type="number" id="p_fl_ace" value="11" min="0"></div>
@@ -236,7 +235,7 @@
 
         <div id="tab-validation" class="tab-content">
             <div class="section-title">Operations Research Verification Logs</div>
-            <p>This panel shows real-time diagnostics confirming the numerical precision of the finite-state absorbing Markov model.</p>
+            <p style="margin-bottom: 15px; color: var(--text-muted);">Real-time metrics comparing analytical dynamic programming bounds with decoupled stochastic path generation.</p>
             <div id="output-validation-metrics">
                 <p style="color:var(--text-muted)">Perform optimization pass to view validation matrix diagnostics.</p>
             </div>
@@ -246,7 +245,7 @@
             <div class="section-title">Mathematical Formulation & Policy Derivation</div>
             <p>This application treats a competitive volleyball set as a <strong>Single-Agent Markov Decision Process (MDP) with a Stationary Opponent Policy</strong> under standard <strong>Rally Scoring Rules</strong>.</p>
             
-            <h3>1. The Bellman Optimality Equation</h3>
+            <h3 style="margin-top:15px; margin-bottom:5px;">1. The Bellman Optimality Equation</h3>
             <p>The solver calculates the globally optimized set win equity at every possible score state by selecting the action maximizing the downstream transition value:</p>
             <p>$$V(u, t, \text{serve}) = \max_{a \in \{\text{TS}, \text{FL}\}} \sum_{u', t', s'} P(u', t', s' \mid u, t, \text{serve}, a) \cdot V(u', t', s')$$</p>
             
@@ -257,7 +256,7 @@
             </blockquote>
             <blockquote>
                 <strong>2. Stationary Strategy Limitation:</strong><br>
-                This model assumes a single-agent decision horizon against a fixed, stationary opponent policy profile (represented by a static sideout rate). It does not explicitly account for dynamic opponent adjustments, tactical changes, timeout pressures, or real-time substitutions.
+                This model assumes a single-agent decision horizon against a fixed, stationary opponent policy profile (represented by a static sideout rate). It does not explicitly account for dynamic opponent adjustments, tactical variations, timeout pressures, or real-time substitutions.
             </blockquote>
             <blockquote>
                 <strong>3. Chain Truncation Bounds & Score Properties:</strong><br>
@@ -291,7 +290,7 @@
             evt.currentTarget.classList.add('active');
         }
         function getRoster() {
-            let d = localStorage.getItem("vb_v2_8_roster");
+            let d = localStorage.getItem("vb_v2_9_roster");
             if (d) {
                 try {
                     let parsed = JSON.parse(d);
@@ -302,7 +301,7 @@
         }
         function saveRoster(players) {
             let wrapper = { version: SCHEMA_VERSION, players: players };
-            localStorage.setItem("vb_v2_8_roster", JSON.stringify(wrapper));
+            localStorage.setItem("vb_v2_9_roster", JSON.stringify(wrapper));
             updateRosterUI();
         }
         function getSampleBadge(n) {
@@ -362,7 +361,7 @@
             let payload = { version: SCHEMA_VERSION, players: getRoster() };
             let dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(payload));
             let downloadAnchor = document.createElement('a');
-            downloadAnchor.setAttribute("href", dataStr); downloadAnchor.setAttribute("download", `volleyball_profiles_v2_8.json`);
+            downloadAnchor.setAttribute("href", dataStr); downloadAnchor.setAttribute("download", `volleyball_profiles_v2_9.json`);
             document.body.appendChild(downloadAnchor); downloadAnchor.click(); downloadAnchor.remove();
         }
         function importProfilesJSON(event) {
@@ -411,7 +410,7 @@
             }
         }
         function resetEngineState() {
-            localStorage.removeItem("vb_v2_8_roster"); defaultRoster = { "Elite Target A": { ts: [150, 22, 38, 45, 30, 15], fl: [220, 11, 11, 33, 99, 66] } };
+            localStorage.removeItem("vb_v2_9_roster"); defaultRoster = { "Elite Target A": { ts: [150, 22, 38, 45, 30, 15], fl: [220, 11, 11, 33, 99, 66] } };
             document.getElementById("score_us").value = 17; document.getElementById("disp_us").textContent = 17;
             document.getElementById("score_them").value = 17; document.getElementById("disp_them").textContent = 17;
             updateRosterUI();
@@ -598,7 +597,7 @@ def execute_optimization_sequence(event):
     resolved_equity = v_grid[score_us][score_them][server_state]
     t_dp_end = time.time()
 
-    # FORWARD FINITE DIFFERENCE EVALUATIONS (Corrected Terminology)
+    # UPDATED TERMINOLOGY: FORWARD FINITE-DIFFERENCE SENSITIVITY ANALYSIS
     h = 0.01
     sens_labels = ["Error Rate Shift", "Ace Rate Shift", "Poor Pass Shift", "Average Pass Shift", "Perfect Pass Shift"]
     sens_deltas = []
@@ -657,7 +656,7 @@ def execute_optimization_sequence(event):
             </table>
         </div>
         <div>
-            <h4>Forward Finite-Difference Sensitivity Metrics</h4>
+            <h4>Forward Finite-Difference Sensitivity Analysis</h4>
             <p style='font-size:0.85rem; color:var(--text-muted); margin-bottom:10px;'>Net variance in global state equity per standard 1% baseline profile mutation:</p>
     """
     
