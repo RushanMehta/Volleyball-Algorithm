@@ -378,7 +378,6 @@
             reader.readAsText(file);
         }
         
-        // FIX: ENHANCED SYNTAX REPAIR FOR JAVASCRIPT STRING INTERPOLATION
         function handleEngineCallback(payload) {
             const data = JSON.parse(payload);
             const color = data.best_action === 0 ? "var(--accent-ts)" : "var(--accent-fl)";
@@ -746,15 +745,29 @@ def execute_optimization_sequence(event):
     flat_policy = []
     for u in range(deuce_cap + 1):
         for t in range(deuce_cap + 1):
-            flat_policy.append(policy_grid[u][t][MAP_STATE["OUR_SERVE"]])
+            flat_policy.append(int(policy_grid[u][t][MAP_STATE["OUR_SERVE"]]))
 
+    # LINE 306 FIX: EXPLICIT DE-REFERENCE CONVERSION INTO STANDARD JSON STRINGS
     payload = {
-        "best_action": policy_grid[score_us][score_them][MAP_STATE["OUR_SERVE"]], "score_us": score_us, "score_them": score_them,
-        "server_state": server_state, "resolved_equity": resolved_equity, "ts_rally": ts_rally, "fl_rally": fl_rally,
-        "sens_deltas": sens_deltas, "mc_equity": mc_equity, "ts_low": ts_low, "ts_high": ts_high,
-        "fl_low": fl_low, "fl_high": fl_high, "states_allocated": model.states_allocated,
-        "t_dp": t_dp, "trials": trials, "deuce_cap": deuce_cap, "flat_policy": flat_policy,
-        "dataset_accuracy": dataset_accuracy
+        "best_action": int(policy_grid[score_us][score_them][MAP_STATE["OUR_SERVE"]]), 
+        "score_us": int(score_us), 
+        "score_them": int(score_them),
+        "server_state": int(server_state), 
+        "resolved_equity": float(resolved_equity), 
+        "ts_rally": float(ts_rally), 
+        "fl_rally": float(fl_rally),
+        "sens_deltas": [float(x) for x in sens_deltas], 
+        "mc_equity": float(mc_equity), 
+        "ts_low": float(ts_low), 
+        "ts_high": float(ts_high),
+        "fl_low": float(fl_low), 
+        "fl_high": float(fl_high), 
+        "states_allocated": int(model.states_allocated),
+        "t_dp": float(t_dp), 
+        "trials": int(trials), 
+        "deuce_cap": int(deuce_cap), 
+        "flat_policy": flat_policy,
+        "dataset_accuracy": float(dataset_accuracy)
     }
     
     window.handleEngineCallback(json.dumps(payload))
