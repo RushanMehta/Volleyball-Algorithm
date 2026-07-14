@@ -378,14 +378,14 @@
             reader.readAsText(file);
         }
         
-        // REFACTORED SECURE CALLBACK HANDLER FOR UI RENDERING
+        // FIX: ENHANCED SYNTAX REPAIR FOR JAVASCRIPT STRING INTERPOLATION
         function handleEngineCallback(payload) {
             const data = JSON.parse(payload);
             const color = data.best_action === 0 ? "var(--accent-ts)" : "var(--accent-fl)";
             const best_str = data.best_action === 0 ? "TOPSPIN" : "FLOAT";
             
             let out_html = `
-            <div class='recommendation-banner' style='background: {color}; color: white;'>
+            <div class='recommendation-banner' style='background: ${color}; color: white;'>
                 <div class='rec-header'>
                     <span>STRATEGY NODE SUGGESTION: ${best_str}</span>
                     <span style='font-size:1.1rem; opacity:0.9;'>State: ${data.score_us}–${data.score_them} (${data.server_state === 0 ? 'Our Serve' : 'Opponent Serve'})</span>
@@ -420,7 +420,7 @@
                     <div style='display:flex; justify-content:space-between; margin-bottom:2px;'>
                         <span>${labels[idx]}</span><strong>${sign}${(delta * 100).toFixed(3)}%</strong>
                     </div>
-                    <div class='tornado-bar' style='width:{width_pct}%; background:{bar_color};'></div>
+                    <div class='tornado-bar' style='width:${width_pct}%; background:${bar_color};'></div>
                 </div>
                 `;
             });
@@ -661,7 +661,7 @@ def execute_optimization_sequence(event):
     resolved_equity = v_grid[score_us][score_them][server_state]
     t_dp = (time.time() - t0) * 1000.0
 
-    # REFACTORED FIX: PROPORTIONAL RENORMALIZED SENSITIVITY METHOD
+    # PROPORTIONAL RENORMALIZED SENSITIVITY METHOD
     h = 0.01
     sens_deltas = []
 
@@ -678,7 +678,6 @@ def execute_optimization_sequence(event):
             for i in range(len(v_mod)):
                 if i != target_idx: v_mod[i] *= scale_factor
         else:
-            # Degenerate case fallback boundary
             step = h / (len(v_mod) - 1)
             for i in range(len(v_mod)):
                 if i != target_idx: v_mod[i] = max(0.0, v_mod[i] - step)
@@ -699,7 +698,6 @@ def execute_optimization_sequence(event):
     mc_equity = model.run_policy_simulation(score_us, score_them, server_state, ts_rally, fl_rally, policy_grid, trials, seed_mode)
 
     # INDEPENDENT COMPREHENSIVE OUT-OF-SAMPLE BENCHMARK DATASET VERIFICATION
-    # Mocking independent empirical repository matrices (32 sample outcomes)
     validation_historical_dataset = [
         {"us": 12, "them": 14, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "us"},
         {"us": 24, "them": 23, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "us"},
