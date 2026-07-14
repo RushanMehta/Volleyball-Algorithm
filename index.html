@@ -497,6 +497,7 @@ import json
 import random
 import time
 import math
+import js  # EXPLICIT PY-JS INTEROP LAYER
 
 # STRUCTURAL DICTIONARY CONSTANTS
 MAP_ACTION = {"TOPSPIN": 0, "FLOAT": 1}
@@ -747,7 +748,6 @@ def execute_optimization_sequence(event):
         for t in range(deuce_cap + 1):
             flat_policy.append(int(policy_grid[u][t][MAP_STATE["OUR_SERVE"]]))
 
-    # LINE 306 FIX: EXPLICIT DE-REFERENCE CONVERSION INTO STANDARD JSON STRINGS
     payload = {
         "best_action": int(policy_grid[score_us][score_them][MAP_STATE["OUR_SERVE"]]), 
         "score_us": int(score_us), 
@@ -770,7 +770,8 @@ def execute_optimization_sequence(event):
         "dataset_accuracy": float(dataset_accuracy)
     }
     
-    window.handleEngineCallback(json.dumps(payload))
+    # LINE 320 ULTIMATE REPAIR: BYPASS WINDOW OBJECT REFERENCE VIA INLINE JAVASCRIPT GLOBAL EVALUATION
+    js.eval(f"window.handleEngineCallback('{json.dumps(payload)}')")
     btn.disabled = False; loader.style.display = "none"
 </script>
 </body>
