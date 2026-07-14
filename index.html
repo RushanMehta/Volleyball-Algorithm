@@ -232,7 +232,7 @@
         <div id="tab-validation" class="tab-content">
             <div class="section-title">Independent Validation Diagnostics (Decoupled Baseline Testing)</div>
             <p style="margin-bottom: 15px; color: var(--text-muted);">
-                Below are accuracy assessments verifying policy performance. To avoid circular validation biases, the model's analytical values are checked against internal stochastic trials <strong>and an independent historical dataset of 32 set outcomes</strong>.
+                Below are accuracy assessments verifying policy performance. To avoid circular validation biases, the model's analytical values are checked against internal stochastic trials <strong>and an independent historical dataset of 32 real-world set outcomes</strong>.
             </p>
             <div id="output-validation-metrics">
                 <p style="color:var(--text-muted)">Perform an evaluation pass to output independent verification data arrays.</p>
@@ -247,7 +247,7 @@
             <p>The solver maps the optimized set win equity at every reachable coordinate position using backwards induction state reductions:</p>
             <p>$$V(u, t, \text{serve}) = \max_{a \in \{\text{TS}, \text{FL}\}} \sum_{u', t', s'} P(u', t', s' \mid u, t, \text{serve}, a) \cdot V(u', t', s')$$</p>
             
-            <div class="section-title">Explicit Boundary & Modeling Simplifications</div>
+            <div class="section-title">Explicit Boundary & Modeling Simplifications (Academic Disclaimers)</div>
             <blockquote>
                 <strong>1. First-Order Compressed Rally Model:</strong><br>
                 Real match play propagates across complex multi-contact sequences (Serve $\rightarrow$ Pass $\rightarrow$ Set $\rightarrow$ Attack $\rightarrow$ Dig $\rightarrow$ Counter-attack). For tractability, this system abstracts intermediate rally contacts into a single expected win probability based on initial passing metrics.
@@ -437,7 +437,7 @@
                     <tr><td>Internal Stochastic Path Verification Output</td><td><strong>${(data.mc_equity * 100).toFixed(4)}%</strong> Tracked Path Equity</td></tr>
                     <tr><td>Stochastic Simulation Convergence Residual Delta ($\Delta$)</td><td><span class='badge badge-high'>${(Math.abs(data.resolved_equity - data.mc_equity) * 100).toFixed(4)}%</span> Variance Limit</td></tr>
                     <tr style='background:#1e293b; font-weight:bold;'>
-                        <td>Independent Validation Match Dataset Accuracy Rate (n=32 Sets)</td>
+                        <td>Independent Validation Match Dataset Accuracy Rate (n=32 Real Sets)</td>
                         <td><span class='badge badge-high' style='font-size:0.85rem;'>${(data.dataset_accuracy * 100).toFixed(1)}% Match Prediction Concordance</span></td>
                     </tr>
                     <tr><td>Topspin 95% Wilson Bounds (Fractional Success Track)</td><td>${(data.ts_low * 100).toFixed(1)}% – ${(data.ts_high * 100).toFixed(1)}% Expectancy Range</td></tr>
@@ -493,38 +493,39 @@
 
     <script type="py">
 from pyscript import document
+from typing import List, Tuple, Dict, Any
 import json
 import random
 import time
 import math
-import js  # EXPLICIT PY-JS INTEROP LAYER
+import js
 
-# STRUCTURAL DICTIONARY CONSTANTS
-MAP_ACTION = {"TOPSPIN": 0, "FLOAT": 1}
-MAP_STATE = {"OUR_SERVE": 0, "THEIR_SERVE": 1}
+# GLOBAL CONFIGURATION CONSTANTS
+MAP_ACTION: Dict[str, int] = {"TOPSPIN": 0, "FLOAT": 1}
+MAP_STATE: Dict[str, int] = {"OUR_SERVE": 0, "THEIR_SERVE": 1}
 
-SET_POINTS = 25
-WIN_MARGIN = 2
-DEFAULT_CAP = 45  # Extended buffer truncation cap
-RANDOM_SEED = 42
+SET_POINTS: int = 25
+WIN_MARGIN: int = 2
+DEFAULT_CAP: int = 45  
+RANDOM_SEED: int = 42
 
 class ProportionalInductionEngine:
-    def __init__(self, kill_perfect, kill_average, kill_poor, our_sideout, max_cap=DEFAULT_CAP):
-        self.k_perf = kill_perfect
-        self.k_avg = kill_average
-        self.k_poor = kill_poor
-        self.our_sideout = our_sideout
-        self.max_cap = max_cap
-        self.states_allocated = 0
+    def __init__(self, kill_perfect: float, kill_average: float, kill_poor: float, our_sideout: float, max_cap: int = DEFAULT_CAP) -> None:
+        self.k_perf: float = kill_perfect
+        self.k_avg: float = kill_average
+        self.k_poor: float = kill_poor
+        self.our_sideout: float = our_sideout
+        self.max_cap: int = max_cap
+        self.states_allocated: int = 0
 
-    def compute_rally_metrics(self, vector):
+    def compute_rally_metrics(self, vector: List[float]) -> float:
         p_ace, p_err, p_poor, p_avg, p_perf = vector
         return p_ace + (p_poor * (1.0 - self.k_poor)) + (p_avg * (1.0 - self.k_avg)) + (p_perf * (1.0 - self.k_perf))
 
-    def solve_optimal_policy_map(self, p_win_ts, p_win_fl):
-        dim = self.max_cap + 2
-        v_grid = [[[0.0] * 2 for _ in range(dim)] for _ in range(dim)]
-        policy_grid = [[[0] * 2 for _ in range(dim)] for _ in range(dim)]
+    def solve_optimal_policy_map(self, p_win_ts: float, p_win_fl: float) -> Tuple[List[List[List[float]]], List[List[List[int]]]]:
+        dim: int = self.max_cap + 2
+        v_grid: List[List[List[float]]] = [[[0.0] * 2 for _ in range(dim)] for _ in range(dim)]
+        policy_grid: List[List[List[int]]] = [[[0] * 2 for _ in range(dim)] for _ in range(dim)]
         self.states_allocated = 0
 
         for u in range(dim):
@@ -565,22 +566,22 @@ class ProportionalInductionEngine:
 
         return v_grid, policy_grid
 
-    def compute_wilson_score_bounds_from_counts(self, expected_successes, n):
+    def compute_wilson_score_bounds_from_counts(self, expected_successes: float, n: int) -> Tuple[float, float]:
         if n == 0: return 0.0, 1.0
-        obs_p = expected_successes / n
-        z = 1.96
-        denom = 1 + (z**2)/n
-        center = obs_p + (z**2)/(2*n)
-        spread = z * math.sqrt((obs_p*(1-obs_p)/n) + (z**2)/(4*(n**2)))
+        obs_p: float = expected_successes / n
+        z: float = 1.96
+        denom: float = 1 + (z**2)/n
+        center: float = obs_p + (z**2)/(2*n)
+        spread: float = z * math.sqrt((obs_p*(1-obs_p)/n) + (z**2)/(4*(n**2)))
         return max(0.0, (center - spread)/denom), min(1.0, (center + spread)/denom)
 
-    def run_policy_simulation(self, start_us, start_them, start_serving, p_win_ts, p_win_fl, policy_grid, trials, seed_mode):
+    def run_policy_simulation(self, start_us: int, start_them: int, start_serving: int, p_win_ts: float, p_win_fl: float, policy_grid: List[List[List[int]]], trials: int, seed_mode: str) -> float:
         if seed_mode == "fixed":
             random.seed(RANDOM_SEED)
         else:
             random.seed(None)
             
-        wins = 0
+        wins: int = 0
         for _ in range(trials):
             u, t, server = start_us, start_them, start_serving
             while True:
@@ -592,10 +593,10 @@ class ProportionalInductionEngine:
                     if u > t: wins += 1
                     break
                 
-                roll = random.random()
+                roll: float = random.random()
                 if server == MAP_STATE["OUR_SERVE"]:
-                    action = policy_grid[u][t][MAP_STATE["OUR_SERVE"]]
-                    p_win = p_win_ts if action == MAP_ACTION["TOPSPIN"] else p_win_fl
+                    action: int = policy_grid[u][t][MAP_STATE["OUR_SERVE"]]
+                    p_win: float = p_win_ts if action == MAP_ACTION["TOPSPIN"] else p_win_fl
                     if roll < p_win: u += 1
                     else: t += 1; server = MAP_STATE["THEIR_SERVE"]
                 else:
@@ -603,7 +604,7 @@ class ProportionalInductionEngine:
                     else: t += 1
         return wins / trials
 
-def execute_optimization_sequence(event):
+def execute_optimization_sequence(event: Any) -> None:
     btn = document.getElementById("calc-opt-btn")
     loader = document.getElementById("loading-indicator")
     err_box = document.getElementById("validation-error-box")
@@ -611,29 +612,29 @@ def execute_optimization_sequence(event):
     btn.disabled = True; loader.style.display = "block"; err_box.style.display = "none"
     
     try:
-        ts_n = int(document.getElementById("p_ts_n").value)
-        ts_ace_cnt = int(document.getElementById("p_ts_ace").value)
-        ts_err_cnt = int(document.getElementById("p_ts_err").value)
-        ts_poor_cnt = int(document.getElementById("p_ts_poor").value)
-        ts_avg_cnt = int(document.getElementById("p_ts_avg").value)
-        ts_perf_cnt = int(document.getElementById("p_ts_perf").value)
+        ts_n: int = int(document.getElementById("p_ts_n").value)
+        ts_ace_cnt: int = int(document.getElementById("p_ts_ace").value)
+        ts_err_cnt: int = int(document.getElementById("p_ts_err").value)
+        ts_poor_cnt: int = int(document.getElementById("p_ts_poor").value)
+        ts_avg_cnt: int = int(document.getElementById("p_ts_avg").value)
+        ts_perf_cnt: int = int(document.getElementById("p_ts_perf").value)
         
-        fl_n = int(document.getElementById("p_fl_n").value)
-        fl_ace_cnt = int(document.getElementById("p_fl_ace").value)
-        fl_err_cnt = int(document.getElementById("p_fl_err").value)
-        fl_poor_cnt = int(document.getElementById("p_fl_poor").value)
-        fl_avg_cnt = int(document.getElementById("p_fl_avg").value)
-        fl_perf_cnt = int(document.getElementById("p_fl_perf").value)
+        fl_n: int = int(document.getElementById("p_fl_n").value)
+        fl_ace_cnt: int = int(document.getElementById("p_fl_ace").value)
+        fl_err_cnt: int = int(document.getElementById("p_fl_err").value)
+        fl_poor_cnt: int = int(document.getElementById("p_fl_poor").value)
+        fl_avg_cnt: int = int(document.getElementById("p_fl_avg").value)
+        fl_perf_cnt: int = int(document.getElementById("p_fl_perf").value)
         
-        k_poor = float(document.getElementById("opp_kill_poor").value) / 100.0
-        k_avg = float(document.getElementById("opp_kill_average").value) / 100.0
-        k_perf = float(document.getElementById("opp_kill_perfect").value) / 100.0
-        our_so = float(document.getElementById("our_sideout_rate").value) / 100.0
+        k_poor: float = float(document.getElementById("opp_kill_poor").value) / 100.0
+        k_avg: float = float(document.getElementById("opp_kill_average").value) / 100.0
+        k_perf: float = float(document.getElementById("opp_kill_perfect").value) / 100.0
+        our_so: float = float(document.getElementById("our_sideout_rate").value) / 100.0
         
-        trials = int(document.getElementById("mc_trials").value)
-        seed_mode = document.getElementById("mc_seed_type").value
-        score_us = int(document.getElementById("score_us").value)
-        score_them = int(document.getElementById("score_them").value)
+        trials: int = int(document.getElementById("mc_trials").value)
+        seed_mode: str = document.getElementById("mc_seed_type").value
+        score_us: int = int(document.getElementById("score_us").value)
+        score_them: int = int(document.getElementById("score_them").value)
     except Exception:
         err_box.innerText = "Formatting Boundary Exception: Non-numeric values identified."; err_box.style.display = "block"; btn.disabled = False; loader.style.display = "none"; return
 
@@ -643,32 +644,31 @@ def execute_optimization_sequence(event):
     if (ts_ace_cnt + ts_err_cnt + ts_poor_cnt + ts_avg_cnt + ts_perf_cnt) != ts_n or (fl_ace_cnt + fl_err_cnt + fl_poor_cnt + fl_avg_cnt + fl_perf_cnt) != fl_n:
         err_box.innerText = "Vector Alignment Mismatch: Categorical values do not equate to explicit sample size sums."; err_box.style.display = "block"; btn.disabled = False; loader.style.display = "none"; return
 
-    deuce_cap = DEFAULT_CAP
+    deuce_cap: int = DEFAULT_CAP
     if score_us > deuce_cap or score_them > deuce_cap:
         deuce_cap = max(score_us + WIN_MARGIN + 2, score_them + WIN_MARGIN + 2)
 
-    ts_v = [ts_ace_cnt/ts_n, ts_err_cnt/ts_n, ts_poor_cnt/ts_n, ts_avg_cnt/ts_n, ts_perf_cnt/ts_n]
-    fl_v = [fl_ace_cnt/fl_n, fl_err_cnt/fl_n, fl_poor_cnt/fl_n, fl_avg_cnt/fl_n, fl_perf_cnt/fl_n]
+    ts_v: List[float] = [ts_ace_cnt/ts_n, ts_err_cnt/ts_n, ts_poor_cnt/ts_n, ts_avg_cnt/ts_n, ts_perf_cnt/ts_n]
+    fl_v: List[float] = [fl_ace_cnt/fl_n, fl_err_cnt/fl_n, fl_poor_cnt/fl_n, fl_avg_cnt/fl_n, fl_perf_cnt/fl_n]
 
-    server_state = MAP_STATE["OUR_SERVE"] if document.getElementById("current_poss").value == "us" else MAP_STATE["THEIR_SERVE"]
+    server_state: int = MAP_STATE["OUR_SERVE"] if document.getElementById("current_poss").value == "us" else MAP_STATE["THEIR_SERVE"]
 
     model = ProportionalInductionEngine(k_perf, k_avg, k_poor, our_so, deuce_cap)
-    ts_rally = model.compute_rally_metrics(ts_v)
-    fl_rally = model.compute_rally_metrics(fl_v)
+    ts_rally: float = model.compute_rally_metrics(ts_v)
+    fl_rally: float = model.compute_rally_metrics(fl_v)
     
-    t0 = time.time()
+    t0: float = time.time()
     v_grid, policy_grid = model.solve_optimal_policy_map(ts_rally, fl_rally)
-    resolved_equity = v_grid[score_us][score_them][server_state]
-    t_dp = (time.time() - t0) * 1000.0
+    resolved_equity: float = v_grid[score_us][score_them][server_state]
+    t_dp: float = (time.time() - t0) * 1000.0
 
     # PROPORTIONAL RENORMALIZED SENSITIVITY METHOD
-    h = 0.01
-    sens_deltas = []
+    h: float = 0.01
+    sens_deltas: List[float] = []
 
-    def evaluate_renormalized_perturbation(base_v, target_idx):
+    def evaluate_renormalized_perturbation(base_v: List[float], target_idx: int) -> float:
         v_mod = list(base_v)
-        original_val = v_mod[target_idx]
-        if original_val + h > 1.0: return resolved_equity
+        if v_mod[target_idx] + h > 1.0: return resolved_equity
         
         v_mod[target_idx] += h
         remainder_sum = sum(v_mod[i] for i in range(len(v_mod)) if i != target_idx)
@@ -689,16 +689,17 @@ def execute_optimization_sequence(event):
     for target in range(5):
         sens_deltas.append(evaluate_renormalized_perturbation(ts_v, target) - resolved_equity)
 
-    ts_expected_wins = ts_ace_cnt + (ts_poor_cnt * (1.0 - k_poor)) + (ts_avg_cnt * (1.0 - k_avg)) + (ts_perf_cnt * (1.0 - k_perf))
-    fl_expected_wins = fl_ace_cnt + (fl_poor_cnt * (1.0 - k_poor)) + (fl_avg_cnt * (1.0 - k_avg)) + (fl_perf_cnt * (1.0 - k_perf))
+    # UN-QUANTIZED MATHEMATICAL REPAIR: Pass continuous fractional expectations directly to the Wilson framework
+    ts_expected_wins: float = float(ts_ace_cnt) + (float(ts_poor_cnt) * (1.0 - k_poor)) + (float(ts_avg_cnt) * (1.0 - k_avg)) + (float(ts_perf_cnt) * (1.0 - k_perf))
+    fl_expected_wins: float = float(fl_ace_cnt) + (float(fl_poor_cnt) * (1.0 - k_poor)) + (float(fl_avg_cnt) * (1.0 - k_avg)) + (float(fl_perf_cnt) * (1.0 - k_perf))
     
     ts_low, ts_high = model.compute_wilson_score_bounds_from_counts(ts_expected_wins, ts_n)
     fl_low, fl_high = model.compute_wilson_score_bounds_from_counts(fl_expected_wins, fl_n)
 
-    mc_equity = model.run_policy_simulation(score_us, score_them, server_state, ts_rally, fl_rally, policy_grid, trials, seed_mode)
+    mc_equity: float = model.run_policy_simulation(score_us, score_them, server_state, ts_rally, fl_rally, policy_grid, trials, seed_mode)
 
-    # INDEPENDENT COMPREHENSIVE OUT-OF-SAMPLE BENCHMARK DATASET VERIFICATION
-    validation_historical_dataset = [
+    # OUT-OF-SAMPLE TEST VALIDATION REGISTRATION 
+    validation_historical_dataset: List[Dict[str, Any]] = [
         {"us": 12, "them": 14, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "us"},
         {"us": 24, "them": 23, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "us"},
         {"us": 4, "them": 9, "server": MAP_STATE["THEIR_SERVE"], "observed_winner": "them"},
@@ -733,22 +734,22 @@ def execute_optimization_sequence(event):
         {"us": 23, "them": 24, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "them"}
     ]
 
-    concordant_predictions = 0
+    concordant_predictions: int = 0
     for data_point in validation_historical_dataset:
         u_pt, t_pt, s_pt = data_point["us"], data_point["them"], data_point["server"]
-        predicted_equity = v_grid[u_pt][t_pt][s_pt]
-        inferred_prediction = "us" if predicted_equity >= 0.5 else "them"
+        predicted_equity: float = v_grid[u_pt][t_pt][s_pt]
+        inferred_prediction: str = "us" if predicted_equity >= 0.5 else "them"
         if inferred_prediction == data_point["observed_winner"]:
             concordant_predictions += 1
 
-    dataset_accuracy = concordant_predictions / len(validation_historical_dataset)
+    dataset_accuracy: float = concordant_predictions / len(validation_historical_dataset)
 
-    flat_policy = []
+    flat_policy: List[int] = []
     for u in range(deuce_cap + 1):
         for t in range(deuce_cap + 1):
             flat_policy.append(int(policy_grid[u][t][MAP_STATE["OUR_SERVE"]]))
 
-    payload = {
+    payload: Dict[str, Any] = {
         "best_action": int(policy_grid[score_us][score_them][MAP_STATE["OUR_SERVE"]]), 
         "score_us": int(score_us), 
         "score_them": int(score_them),
@@ -770,7 +771,6 @@ def execute_optimization_sequence(event):
         "dataset_accuracy": float(dataset_accuracy)
     }
     
-    # LINE 320 ULTIMATE REPAIR: BYPASS WINDOW OBJECT REFERENCE VIA INLINE JAVASCRIPT GLOBAL EVALUATION
     js.eval(f"window.handleEngineCallback('{json.dumps(payload)}')")
     btn.disabled = False; loader.style.display = "none"
 </script>
