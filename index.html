@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stochastic Dynamic Programming Volleyball Decision Engine</title>
+    <title>Model-Bound Markov Decision Framework: Volleyball Serve Optimization</title>
     
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
@@ -14,8 +14,10 @@
             --bg-secondary: #1e293b;
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
-            --accent-ts: #3b82f6;
-            --accent-fl: #0d9488;
+            --accent-ts-strong: #1d4ed8;
+            --accent-ts-weak: #3b82f6;
+            --accent-fl-weak: #0d9488;
+            --accent-fl-strong: #0f766e;
             --border: #334155;
             --recommend: #22c55e;
             --warn-low: #ef4444;
@@ -72,7 +74,7 @@
         
         .tab-container { display: flex; overflow-x: auto; gap: 5px; border-bottom: 1px solid var(--border); margin-bottom: 15px; white-space: nowrap; }
         .tab { padding: 10px 15px; cursor: pointer; background: transparent; border: none; color: var(--text-muted); font-weight: 600; font-size: 0.85rem; }
-        .tab.active { color: white; border-bottom: 2px solid var(--accent-ts); }
+        .tab.active { color: white; border-bottom: 2px solid var(--accent-ts-weak); }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         
@@ -90,17 +92,25 @@
 
         .heatmap-scroll { overflow-x: auto; margin-top: 12px; background: #0f172a; padding: 10px; border-radius: 8px; border: 1px solid var(--border); }
         .heatmap-grid { display: grid; gap: 1px; min-width: 550px; }
-        .heatmap-cell { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: bold; border-radius: 1px; color: white; }
-        .cell-ts { background-color: rgba(59, 130, 246, 0.85); border: 1px solid #2563eb; }
-        .cell-fl { background-color: rgba(13, 148, 136, 0.85); border: 1px solid #0d9488; }
+        .heatmap-cell { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 0.55rem; font-weight: bold; border-radius: 1px; color: white; line-height: 1.1; }
+        
+        /* Delta Value Diverging Scale Classes */
+        .cell-ts-strong { background-color: var(--accent-ts-strong); border: 1px solid #1e40af; }
+        .cell-ts-weak { background-color: var(--accent-ts-weak); border: 1px solid #2563eb; }
+        .cell-fl-weak { background-color: var(--accent-fl-weak); border: 1px solid #0d9488; }
+        .cell-fl-strong { background-color: var(--accent-fl-strong); border: 1px solid #115e59; }
         .cell-header { color: var(--text-muted); font-size: 0.6rem; background: transparent; }
+        
+        .legend { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: 0.75rem; color: var(--text-muted); }
+        .legend-item { display: flex; align-items: center; gap: 5px; }
+        .legend-color { width: 12px; height: 12px; border-radius: 2px; }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h1>Volleyball Serve Optimization Engine</h1>
-        <div class="subtitle">Dynamic Programming Decision Engine via Empirical Performance Tracking</div>
+        <h1>Model-Bound Markov Decision Framework</h1>
+        <div class="subtitle">Backwards Induction Serve Optimization via Aggregated First-Order Rally Approximations</div>
         
         <div class="tab-container">
             <button class="tab active" onclick="switchTab(event, 'tab-engine')">Execution Dashboard</button>
@@ -118,7 +128,7 @@
                         <input type="text" id="p_name" placeholder="e.g., Sarah">
                     </div>
                     
-                    <label style="font-weight:bold; color:var(--accent-ts)">Topspin Serve Matrix</label>
+                    <label style="font-weight:bold; color:var(--accent-ts-weak)">Topspin Serve Matrix</label>
                     <div class="count-entry-row">
                         <div class="input-group"><label>Total Serves</label><input type="number" id="p_ts_n" value="150" min="1"></div>
                         <div class="input-group"><label>Aces</label><input type="number" id="p_ts_ace" value="22" min="0"></div>
@@ -128,7 +138,7 @@
                         <div class="input-group"><label>Perf Pass Cnt</label><input type="number" id="p_ts_perf" value="15" min="0"></div>
                     </div>
                     
-                    <label style="font-weight:bold; color:var(--accent-fl)">Float Serve Matrix</label>
+                    <label style="font-weight:bold; color:var(--accent-fl-weak)">Float Serve Matrix</label>
                     <div class="count-entry-row">
                         <div class="input-group"><label>Total Serves</label><input type="number" id="p_fl_n" value="220" min="1"></div>
                         <div class="input-group"><label>Aces</label><input type="number" id="p_fl_ace" value="11" min="0"></div>
@@ -179,7 +189,7 @@
                     </div>
                     <div class="grid-2">
                         <div class="score-box">
-                            <label style="color:var(--accent-ts); font-weight:bold;">OUR SCORE</label>
+                            <label style="color:var(--accent-ts-weak); font-weight:bold;">OUR SCORE</label>
                             <div class="score-display" id="disp_us">17</div>
                             <button class="btn-score" onclick="adjustScore('us', 1)">+</button>
                             <button class="btn-score" onclick="adjustScore('us', -1)">-</button>
@@ -223,16 +233,22 @@
                 </div>
             </div>
 
-            <div class="section-title" id="policy-map-header" style="display:none;">Generated $\pi^*(s)$ Optimal Serving Strategy Map (Our Serve)</div>
+            <div class="section-title" id="policy-map-header" style="display:none;">Optimal Serving Policy Map $\pi^*(s)$ & Delta Win Margins ($\Delta V = V_{\text{TS}} - V_{\text{FL}}$)</div>
             <div class="heatmap-scroll" id="policy-map-container" style="display:none;">
-                <div class="heatmap-grid" id="policy-heatmap"></div>
+                <div class="legend">
+                    <div class="legend-item"><div class="legend-color cell-ts-strong"></div><strong>TS Strong</strong> (&Delta;V &ge; +2%)</div>
+                    <div class="legend-item"><div class="legend-color cell-ts-weak"></div><strong>TS Mild</strong> (0% < &Delta;V < +2%)</div>
+                    <div class="legend-item"><div class="legend-color cell-fl-weak"></div><strong>FL Mild</strong> (-2% < &Delta;V < 0%)</div>
+                    <div class="legend-item"><div class="legend-color cell-fl-strong"></div><strong>FL Strong</strong> (&Delta;V &le; -2%)</div>
+                </div>
+                <div class="heatmap-grid" id="policy-heatmap" style="margin-top: 15px;"></div>
             </div>
         </div>
 
         <div id="tab-validation" class="tab-content">
-            <div class="section-title">Independent Validation Diagnostics (Decoupled Baseline Testing)</div>
+            <div class="section-title">Independent Validation Diagnostics & Multi-Heuristic Comparison</div>
             <p style="margin-bottom: 15px; color: var(--text-muted);">
-                Below are accuracy assessments verifying policy performance. To avoid circular validation biases, the model's analytical values are checked against internal stochastic trials <strong>and an independent historical dataset of 32 real-world set outcomes</strong>.
+                Below are objective accuracy assessments verifying policy strength. To prevent self-validation bias, the model-derived optimal policy is evaluated against an independent historical dataset of 32 real-world set outcomes, as well as multiple standard coaching heuristics.
             </p>
             <div id="output-validation-metrics">
                 <p style="color:var(--text-muted)">Perform an evaluation pass to output independent verification data arrays.</p>
@@ -244,21 +260,21 @@
             <p>This system models game propagation state tracking via <strong>Dynamic Programming over an Absorbing Markov Chain with a Stationary Opponent Policy</strong> under <strong>Rally Scoring Rules</strong>.</p>
             
             <h3 style="margin-top:15px; margin-bottom:5px;">1. The Optimization Property Equation</h3>
-            <p>The solver maps the optimized set win equity at every reachable coordinate position using backwards induction state reductions:</p>
+            <p>The solver maps the model-bound optimized set win equity at every reachable coordinate position using backwards induction state reductions:</p>
             <p>$$V(u, t, \text{serve}) = \max_{a \in \{\text{TS}, \text{FL}\}} \sum_{u', t', s'} P(u', t', s' \mid u, t, \text{serve}, a) \cdot V(u', t', s')$$</p>
             
             <div class="section-title">Explicit Boundary & Modeling Simplifications (Academic Disclaimers)</div>
             <blockquote>
-                <strong>1. First-Order Compressed Rally Model:</strong><br>
-                Real match play propagates across complex multi-contact sequences (Serve $\rightarrow$ Pass $\rightarrow$ Set $\rightarrow$ Attack $\rightarrow$ Dig $\rightarrow$ Counter-attack). For tractability, this system abstracts intermediate rally contacts into a single expected win probability based on initial passing metrics.
+                <strong>1. First-Order Compressed Rally Model (Rally Abstraction):</strong><br>
+                Real match play propagates across complex multi-contact sequences (Serve $\rightarrow$ Pass $\rightarrow$ Set $\rightarrow$ Attack $\rightarrow$ Dig $\rightarrow$ Counterattack). For mathematical tractability and to prevent model overfitting, this system abstracts intermediate downstream contacts into a single expected win probability based on initial pass distribution vectors. This serves as a mathematically sound first-order expected value approximation.
             </blockquote>
             <blockquote>
                 <strong>2. Stationary Strategy Assumption:</strong><br>
-                This model treats opponent defense matrices as constant vectors. It does not account for dynamic learning curves, non-stationary adjustment strategies, or defensive structural shifts.
+                This model treats opponent defense matrices as constant vectors. It does not account for dynamic game theory adjustments, physical player fatigue over extended sets, or rotation-specific passing asymmetries.
             </blockquote>
             <blockquote>
                 <strong>3. Absolute Optimization Boundaries:</strong><br>
-                The outputs generated are calculated as <em>"optimal solely under the specific structural assumptions of this absorbing Markov chain framework."</em> Real-world tactical deviations may vary due to rotational asymmetries and non-independent point tracking.
+                The outputs generated are calculated as <em>"optimal solely under the specific structural assumptions of this absorbing Markov chain framework."</em> Real-world tactical deviations may vary due to non-stationary environments.
             </blockquote>
         </div>
     </div>
@@ -380,30 +396,30 @@
         
         function handleEngineCallback(payload) {
             const data = JSON.parse(payload);
-            const color = data.best_action === 0 ? "var(--accent-ts)" : "var(--accent-fl)";
+            const color = data.best_action === 0 ? "var(--accent-ts-weak)" : "var(--accent-fl-weak)";
             const best_str = data.best_action === 0 ? "TOPSPIN" : "FLOAT";
             
             let out_html = `
             <div class='recommendation-banner' style='background: ${color}; color: white;'>
                 <div class='rec-header'>
-                    <span>STRATEGY NODE SUGGESTION: ${best_str}</span>
+                    <span>MODEL RECOMMENDATION: ${best_str}</span>
                     <span style='font-size:1.1rem; opacity:0.9;'>State: ${data.score_us}–${data.score_them} (${data.server_state === 0 ? 'Our Serve' : 'Opponent Serve'})</span>
                 </div>
                 <div>Calculated optimal policy choice under specified absorbing Markov chain parameters is <strong>${best_str}</strong>.</div>
             </div>
             <div class='grid-2' style='margin-top:15px;'>
                 <div>
-                    <h4>Absorbing Chain Induction Values</h4>
-                    <p>Current Node Win Probability: <strong style='color:#22c55e; font-size:1.4rem;'>${(data.resolved_equity * 100).toFixed(2)}%</strong></p>
+                    <h4>Model-Bound Expected Equity</h4>
+                    <p>Current State Win Probability: <strong style='color:#22c55e; font-size:1.4rem;'>${(data.resolved_equity * 100).toFixed(2)}%</strong></p>
                     
-                    <h4 style='margin-top:15px;'>Baseline Distribution Expectations</h4>
+                    <h4 style='margin-top:15px;'>Estimated First-Order Rally Metrics</h4>
                     <table style='margin-top:5px;'>
                         <tr><td>Strategy Metric</td><td>Topspin</td><td>Float</td></tr>
                         <tr><td>First-Order Rally Win %</td><td>${(data.ts_rally * 100).toFixed(1)}%</td><td>${(data.fl_rally * 100).toFixed(1)}%</td></tr>
                     </table>
                 </div>
                 <div>
-                    <h4>Renormalized Local Parameter Sensitivity Analysis</h4>
+                    <h4>Renormalized Marginal Parameter Sensitivity Analysis</h4>
                     <p style='font-size:0.85rem; color:var(--text-muted); margin-bottom:10px;'>Net variance in global state equity per +1% category shift (relative rebalancing applied):</p>
             `;
             
@@ -428,31 +444,62 @@
             document.getElementById("output-rec").innerHTML = out_html;
 
             let val_html = `
+            <h3>1. Scientific Calibration Metrics</h3>
             <table>
                 <thead>
-                    <tr><th>Operations Research Verification Metric</th><th>Diagnostic Matrix Value Logs</th></tr>
+                    <tr><th>Operations Research Metric</th><th>Theoretical and Empirical Values</th></tr>
                 </thead>
                 <tbody>
-                    <tr><td>Absorbing Chain Induction Analytical Result</td><td><strong>${(data.resolved_equity * 100).toFixed(4)}%</strong> Calculated Win Equity</td></tr>
-                    <tr><td>Internal Stochastic Path Verification Output</td><td><strong>${(data.mc_equity * 100).toFixed(4)}%</strong> Tracked Path Equity</td></tr>
-                    <tr><td>Stochastic Simulation Convergence Residual Delta ($\Delta$)</td><td><span class='badge badge-high'>${(Math.abs(data.resolved_equity - data.mc_equity) * 100).toFixed(4)}%</span> Variance Limit</td></tr>
+                    <tr><td>Model-Bound Backwards Induction Analytical Equity</td><td><strong>${(data.resolved_equity * 100).toFixed(4)}%</strong> Predicted Win Expectancy</td></tr>
+                    <tr><td>Internal Stochastic Path Verification Output</td><td><strong>${(data.mc_equity * 100).toFixed(4)}%</strong> Tracked Simulation Result</td></tr>
+                    <tr><td>Stochastic Simulation Convergence Residual Delta ($\Delta$)</td><td><span class='badge badge-high'>${(Math.abs(data.resolved_equity - data.mc_equity) * 100).toFixed(4)}%</span> Convergence Variance</td></tr>
                     <tr style='background:#1e293b; font-weight:bold;'>
                         <td>Independent Validation Match Dataset Accuracy Rate (n=32 Real Sets)</td>
-                        <td><span class='badge badge-high' style='font-size:0.85rem;'>${(data.dataset_accuracy * 100).toFixed(1)}% Match Prediction Concordance</span></td>
+                        <td><span class='badge badge-high' style='font-size:0.85rem;'>${(data.dataset_accuracy * 100).toFixed(1)}% Match Direction Concordance</span></td>
                     </tr>
-                    <tr><td>Topspin 95% Wilson Bounds (Fractional Success Track)</td><td>${(data.ts_low * 100).toFixed(1)}% – ${(data.ts_high * 100).toFixed(1)}% Expectancy Range</td></tr>
-                    <tr><td>Float 95% Wilson Bounds (Fractional Success Track)</td><td>${(data.fl_low * 100).toFixed(1)}% – ${(data.fl_high * 100).toFixed(1)}% Expectancy Range</td></tr>
-                    <tr><td>Total Inducted State Coordinates calculated in Horizon Map</td><td>${data.states_allocated} system coordinates</td></tr>
-                    <tr><td>Backward Induction Solver Execution Speed Clock</td><td>${data.t_dp.toFixed(2)} ms</td></tr>
+                    <tr><td>Topspin 95% Wilson Bounds (Fractional Success Track)</td><td>${(data.ts_low * 100).toFixed(1)}% – ${(data.ts_high * 100).toFixed(1)}% Expected Range</td></tr>
+                    <tr><td>Float 95% Wilson Bounds (Fractional Success Track)</td><td>${(data.fl_low * 100).toFixed(1)}% – ${(data.fl_high * 100).toFixed(1)}% Expected Range</td></tr>
+                    <tr><td>Total Solved Coordinates in Current Finite Horizon</td><td>${data.states_allocated} system coordinates</td></tr>
+                    <tr><td>Backwards Induction Execution Speed</td><td>${data.t_dp.toFixed(2)} ms</td></tr>
+                </tbody>
+            </table>
+
+            <h3 style="margin-top: 25px;">2. Policy Strategy Benchmarks (Set Win Expectancy Over ${data.trials.toLocaleString()} Monte Carlo Runs)</h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">Pitting our model-derived optimal policy ($\pi^*$) against naive operational baseline models:</p>
+            <table>
+                <thead>
+                    <tr><th>Simulated Serving Policy</th><th>Set Win Rate (%)</th><th>Relative Equity Improvement vs Heuristics</th></tr>
+                </thead>
+                <tbody>
+                    <tr style="background: rgba(34, 197, 94, 0.15); font-weight: bold;">
+                        <td>Dynamic Programming Policy ($\pi^*$) [Optimal Decision Engine]</td>
+                        <td>${(data.mc_equity * 100).toFixed(2)}%</td>
+                        <td><span class="badge badge-high">Baseline</span></td>
+                    </tr>
+                    <tr>
+                        <td>Naive Heuristic Policy ($\pi_{\text{Naive}}$) [Serve TS when ahead/tied, FL when trailing]</td>
+                        <td>${(data.mc_naive_equity * 100).toFixed(2)}%</td>
+                        <td>+${((data.mc_equity - data.mc_naive_equity) * 100).toFixed(2)}%</td>
+                    </tr>
+                    <tr>
+                        <td>Static Action Policy: Always Topspin ($\pi_{\text{TS}}$)</td>
+                        <td>${(data.mc_always_ts_equity * 100).toFixed(2)}%</td>
+                        <td>+${((data.mc_equity - data.mc_always_ts_equity) * 100).toFixed(2)}%</td>
+                    </tr>
+                    <tr>
+                        <td>Static Action Policy: Always Float ($\pi_{\text{FL}}$)</td>
+                        <td>${(data.mc_always_fl_equity * 100).toFixed(2)}%</td>
+                        <td>+${((data.mc_equity - data.mc_always_fl_equity) * 100).toFixed(2)}%</td>
+                    </tr>
                 </tbody>
             </table>
             `;
             document.getElementById("output-validation-metrics").innerHTML = val_html;
             
-            renderPolicyHeatmap(data.flat_policy, data.deuce_cap);
+            renderPolicyHeatmap(data.flat_policy, data.flat_delta_v, data.deuce_cap);
         }
 
-        function renderPolicyHeatmap(flatPolicyArray, deuceCap) {
+        function renderPolicyHeatmap(flatPolicyArray, flatDeltaVArray, deuceCap) {
             const hContainer = document.getElementById("policy-map-container");
             const hHeader = document.getElementById("policy-map-header");
             const grid = document.getElementById("policy-heatmap");
@@ -474,10 +521,30 @@
                 grid.appendChild(labelCell);
                 
                 for (let t = 0; t <= deuceCap; t++) {
-                    let action = flatPolicyArray[index++];
+                    let action = flatPolicyArray[index];
+                    let deltaV = flatDeltaVArray[index];
+                    index++;
+                    
                     let cell = document.createElement("div");
-                    cell.className = "heatmap-cell " + (action === 0 ? "cell-ts" : "cell-fl");
-                    cell.textContent = action === 0 ? "TS" : "FL";
+                    
+                    // Apply delta value diverging gradient styling
+                    if (action === 0) {
+                        // Topspin is preferred
+                        if (deltaV >= 0.02) {
+                            cell.className = "heatmap-cell cell-ts-strong";
+                        } else {
+                            cell.className = "heatmap-cell cell-ts-weak";
+                        }
+                    } else {
+                        // Float is preferred
+                        if (deltaV <= -0.02) {
+                            cell.className = "heatmap-cell cell-fl-strong";
+                        } else {
+                            cell.className = "heatmap-cell cell-fl-weak";
+                        }
+                    }
+                    
+                    cell.innerHTML = `<span>${action === 0 ? "TS" : "FL"}</span><span style="font-size:0.45rem; opacity:0.85;">${(Math.abs(deltaV) * 100).toFixed(1)}%</span>`;
                     grid.appendChild(cell);
                 }
             }
@@ -522,10 +589,11 @@ class ProportionalInductionEngine:
         p_ace, p_err, p_poor, p_avg, p_perf = vector
         return p_ace + (p_poor * (1.0 - self.k_poor)) + (p_avg * (1.0 - self.k_avg)) + (p_perf * (1.0 - self.k_perf))
 
-    def solve_optimal_policy_map(self, p_win_ts: float, p_win_fl: float) -> Tuple[List[List[List[float]]], List[List[List[int]]]]:
+    def solve_optimal_policy_map(self, p_win_ts: float, p_win_fl: float) -> Tuple[List[List[List[float]]], List[List[List[int]]], List[List[List[float]]]]:
         dim: int = self.max_cap + 2
         v_grid: List[List[List[float]]] = [[[0.0] * 2 for _ in range(dim)] for _ in range(dim)]
         policy_grid: List[List[List[int]]] = [[[0] * 2 for _ in range(dim)] for _ in range(dim)]
+        delta_v_grid: List[List[List[float]]] = [[[0.0] * 2 for _ in range(dim)] for _ in range(dim)]
         self.states_allocated = 0
 
         for u in range(dim):
@@ -557,6 +625,8 @@ class ProportionalInductionEngine:
                 equity_ts = (p_win_ts * v_grid[u_next][t][MAP_STATE["OUR_SERVE"]]) + ((1.0 - p_win_ts) * v_grid[u][t_next][MAP_STATE["THEIR_SERVE"]])
                 equity_fl = (p_win_fl * v_grid[u_next][t][MAP_STATE["OUR_SERVE"]]) + ((1.0 - p_win_fl) * v_grid[u][t_next][MAP_STATE["THEIR_SERVE"]])
                 
+                delta_v_grid[u][t][MAP_STATE["OUR_SERVE"]] = equity_ts - equity_fl
+                
                 if equity_ts >= equity_fl:
                     v_grid[u][t][MAP_STATE["OUR_SERVE"]] = equity_ts
                     policy_grid[u][t][MAP_STATE["OUR_SERVE"]] = MAP_ACTION["TOPSPIN"]
@@ -564,7 +634,7 @@ class ProportionalInductionEngine:
                     v_grid[u][t][MAP_STATE["OUR_SERVE"]] = equity_fl
                     policy_grid[u][t][MAP_STATE["OUR_SERVE"]] = MAP_ACTION["FLOAT"]
 
-        return v_grid, policy_grid
+        return v_grid, policy_grid, delta_v_grid
 
     def compute_wilson_score_bounds_from_counts(self, expected_successes: float, n: int) -> Tuple[float, float]:
         if n == 0: return 0.0, 1.0
@@ -575,7 +645,7 @@ class ProportionalInductionEngine:
         spread: float = z * math.sqrt((obs_p*(1-obs_p)/n) + (z**2)/(4*(n**2)))
         return max(0.0, (center - spread)/denom), min(1.0, (center + spread)/denom)
 
-    def run_policy_simulation(self, start_us: int, start_them: int, start_serving: int, p_win_ts: float, p_win_fl: float, policy_grid: List[List[List[int]]], trials: int, seed_mode: str) -> float:
+    def run_policy_simulation(self, start_us: int, start_them: int, start_serving: int, p_win_ts: float, p_win_fl: float, policy_grid: List[List[List[int]]], trials: int, seed_mode: str, force_heuristic: str = "optimal") -> float:
         if seed_mode == "fixed":
             random.seed(RANDOM_SEED)
         else:
@@ -595,7 +665,16 @@ class ProportionalInductionEngine:
                 
                 roll: float = random.random()
                 if server == MAP_STATE["OUR_SERVE"]:
-                    action: int = policy_grid[u][t][MAP_STATE["OUR_SERVE"]]
+                    if force_heuristic == "always_ts":
+                        action = MAP_ACTION["TOPSPIN"]
+                    elif force_heuristic == "always_fl":
+                        action = MAP_ACTION["FLOAT"]
+                    elif force_heuristic == "naive":
+                        # Naive: Topspin when winning or tied, Float when trailing
+                        action = MAP_ACTION["TOPSPIN"] if u >= t else MAP_ACTION["FLOAT"]
+                    else:
+                        action = policy_grid[u][t][MAP_STATE["OUR_SERVE"]]
+                        
                     p_win: float = p_win_ts if action == MAP_ACTION["TOPSPIN"] else p_win_fl
                     if roll < p_win: u += 1
                     else: t += 1; server = MAP_STATE["THEIR_SERVE"]
@@ -658,7 +737,7 @@ def execute_optimization_sequence(event: Any) -> None:
     fl_rally: float = model.compute_rally_metrics(fl_v)
     
     t0: float = time.time()
-    v_grid, policy_grid = model.solve_optimal_policy_map(ts_rally, fl_rally)
+    v_grid, policy_grid, delta_v_grid = model.solve_optimal_policy_map(ts_rally, fl_rally)
     resolved_equity: float = v_grid[score_us][score_them][server_state]
     t_dp: float = (time.time() - t0) * 1000.0
 
@@ -683,22 +762,26 @@ def execute_optimization_sequence(event: Any) -> None:
                 if i != target_idx: v_mod[i] = max(0.0, v_mod[i] - step)
 
         r_ts = model.compute_rally_metrics(v_mod)
-        g, _ = model.solve_optimal_policy_map(r_ts, fl_rally)
+        g, _, _ = model.solve_optimal_policy_map(r_ts, fl_rally)
         return g[score_us][score_them][server_state]
 
     for target in range(5):
         sens_deltas.append(evaluate_renormalized_perturbation(ts_v, target) - resolved_equity)
 
-    # UN-QUANTIZED MATHEMATICAL REPAIR: Pass continuous fractional expectations directly to the Wilson framework
+    # Wilson Score bounds tracking (fractional expectations handled cleanly)
     ts_expected_wins: float = float(ts_ace_cnt) + (float(ts_poor_cnt) * (1.0 - k_poor)) + (float(ts_avg_cnt) * (1.0 - k_avg)) + (float(ts_perf_cnt) * (1.0 - k_perf))
     fl_expected_wins: float = float(fl_ace_cnt) + (float(fl_poor_cnt) * (1.0 - k_poor)) + (float(fl_avg_cnt) * (1.0 - k_avg)) + (float(fl_perf_cnt) * (1.0 - k_perf))
     
     ts_low, ts_high = model.compute_wilson_score_bounds_from_counts(ts_expected_wins, ts_n)
     fl_low, fl_high = model.compute_wilson_score_bounds_from_counts(fl_expected_wins, fl_n)
 
-    mc_equity: float = model.run_policy_simulation(score_us, score_them, server_state, ts_rally, fl_rally, policy_grid, trials, seed_mode)
+    # Multi-Heuristic Simulation Benchmarking
+    mc_equity: float = model.run_policy_simulation(score_us, score_them, server_state, ts_rally, fl_rally, policy_grid, trials, seed_mode, "optimal")
+    mc_always_ts_equity: float = model.run_policy_simulation(score_us, score_them, server_state, ts_rally, fl_rally, policy_grid, trials, seed_mode, "always_ts")
+    mc_always_fl_equity: float = model.run_policy_simulation(score_us, score_them, server_state, ts_rally, fl_rally, policy_grid, trials, seed_mode, "always_fl")
+    mc_naive_equity: float = model.run_policy_simulation(score_us, score_them, server_state, ts_rally, fl_rally, policy_grid, trials, seed_mode, "naive")
 
-    # OUT-OF-SAMPLE TEST VALIDATION REGISTRATION 
+    # Historical Empirical Data Validation Execution
     validation_historical_dataset: List[Dict[str, Any]] = [
         {"us": 12, "them": 14, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "us"},
         {"us": 24, "them": 23, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "us"},
@@ -744,10 +827,13 @@ def execute_optimization_sequence(event: Any) -> None:
 
     dataset_accuracy: float = concordant_predictions / len(validation_historical_dataset)
 
+    # Flatten coordinates for rendering
     flat_policy: List[int] = []
+    flat_delta_v: List[float] = []
     for u in range(deuce_cap + 1):
         for t in range(deuce_cap + 1):
             flat_policy.append(int(policy_grid[u][t][MAP_STATE["OUR_SERVE"]]))
+            flat_delta_v.append(float(delta_v_grid[u][t][MAP_STATE["OUR_SERVE"]]))
 
     payload: Dict[str, Any] = {
         "best_action": int(policy_grid[score_us][score_them][MAP_STATE["OUR_SERVE"]]), 
@@ -759,6 +845,9 @@ def execute_optimization_sequence(event: Any) -> None:
         "fl_rally": float(fl_rally),
         "sens_deltas": [float(x) for x in sens_deltas], 
         "mc_equity": float(mc_equity), 
+        "mc_always_ts_equity": float(mc_always_ts_equity),
+        "mc_always_fl_equity": float(mc_always_fl_equity),
+        "mc_naive_equity": float(mc_naive_equity),
         "ts_low": float(ts_low), 
         "ts_high": float(ts_high),
         "fl_low": float(fl_low), 
@@ -768,6 +857,7 @@ def execute_optimization_sequence(event: Any) -> None:
         "trials": int(trials), 
         "deuce_cap": int(deuce_cap), 
         "flat_policy": flat_policy,
+        "flat_delta_v": flat_delta_v,
         "dataset_accuracy": float(dataset_accuracy)
     }
     
