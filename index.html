@@ -236,7 +236,7 @@
                 <div class="legend">
                     <div class="legend-item"><div class="legend-color cell-ts-strong"></div><strong>TS Strong</strong> (Topspin Wins by &ge; 2% Equity)</div>
                     <div class="legend-item"><div class="legend-color cell-ts-weak"></div><strong>TS Mild</strong> (Topspin Wins by &lt; 2% Equity)</div>
-                    <div class="legend-item"><div class="legend-color cell-toss-up"></div><strong>Toss-Up / Close</strong> (Round 0.1% Advantage)</div>
+                    <div class="legend-item"><div class="legend-color cell-toss-up"></div><strong>Toss-Up / Equal</strong> (Flat 0.0% Difference)</div>
                     <div class="legend-item"><div class="legend-color cell-fl-weak"></div><strong>FL Mild</strong> (Float Wins by &lt; 2% Equity)</div>
                     <div class="legend-item"><div class="legend-color cell-fl-strong"></div><strong>FL Strong</strong> (Float Wins by &ge; 2% Equity)</div>
                     <div class="legend-item"><div class="legend-color cell-game-over" style="width:12px; height:12px; border-radius:2px;"></div><strong>Set Over</strong> (Grayed out scores)</div>
@@ -506,16 +506,21 @@
             `;
             document.getElementById("output-validation-metrics").innerHTML = val_html;
             
-            renderPolicyHeatmap(data.flat_policy, data.flat_delta_v, data.deuce_cap);
+            renderPolicyHeatmap(data.flat_policy, data.flat_delta_v, data.deuce_cap, data.server_name);
         }
 
-        function renderPolicyHeatmap(flatPolicyArray, flatDeltaVArray, deuceCap) {
+        function renderPolicyHeatmap(flatPolicyArray, flatDeltaVArray, deuceCap, serverName) {
             const hContainer = document.getElementById("policy-map-container");
             const hHeader = document.getElementById("policy-map-header");
             const grid = document.getElementById("policy-heatmap");
             
             grid.innerHTML = "";
-            hContainer.style.display = "block"; hHeader.style.display = "block";
+            hContainer.style.display = "block"; 
+            
+            // Explicitly title the grid for the specific active server
+            hHeader.style.display = "block";
+            hHeader.innerHTML = `${serverName}'s Optimal Serving Policy Map & Margin of Advantage (Topspin vs. Float)`;
+            
             grid.style.gridTemplateColumns = `repeat(${deuceCap + 2}, 1fr)`;
             
             for (let t = 0; t <= deuceCap + 1; t++) {
@@ -544,32 +549,35 @@
                         cell.className = "heatmap-cell cell-game-over";
                         cell.innerHTML = `<span>—</span>`;
                     } else {
-                        // Round 0.0% up to 0.1% for friendly display representation
                         let displayDelta = Math.abs(deltaV);
-                        if (displayDelta < 0.0005) {
-                            displayDelta = 0.001; // Clamp up to 0.1%
-                        }
-
+                        
                         if (Math.abs(deltaV) < 1e-6) {
-                            // Toss-Up Style
+                            // True Toss-Up: Keep at exactly 0.0% advantage margin
                             cell.className = "heatmap-cell cell-toss-up";
-                            cell.innerHTML = `<span>TS/FL</span><span style="font-size:0.45rem; opacity:0.85;">${(displayDelta * 100).toFixed(1)}%</span>`;
-                        } else if (action === 0) {
-                            // Topspin Preference
-                            if (deltaV >= 0.02) {
-                                cell.className = "heatmap-cell cell-ts-strong";
-                            } else {
-                                cell.className = "heatmap-cell cell-ts-weak";
-                            }
-                            cell.innerHTML = `<span>TS</span><span style="font-size:0.45rem; opacity:0.85;">+${(displayDelta * 100).toFixed(1)}%</span>`;
+                            cell.innerHTML = `<span>TS/FL</span><span style="font-size:0.45rem; opacity:0.85;">0.0%</span>`;
                         } else {
-                            // Float Preference
-                            if (deltaV <= -0.02) {
-                                cell.className = "heatmap-cell cell-fl-strong";
-                            } else {
-                                cell.className = "heatmap-cell cell-fl-weak";
+                            // Micro-adjust minimum favored state up to 0.1% if mathematically different
+                            if (displayDelta < 0.0005) {
+                                displayDelta = 0.001;
                             }
-                            cell.innerHTML = `<span>FL</span><span style="font-size:0.45rem; opacity:0.85;">+${(displayDelta * 100).toFixed(1)}%</span>`;
+                            
+                            if (action === 0) {
+                                // Topspin Preference
+                                if (deltaV >= 0.02) {
+                                    cell.className = "heatmap-cell cell-ts-strong";
+                                } else {
+                                    cell.className = "heatmap-cell cell-ts-weak";
+                                }
+                                cell.innerHTML = `<span>TS</span><span style="font-size:0.45rem; opacity:0.85;">+${(displayDelta * 100).toFixed(1)}%</span>`;
+                            } else {
+                                // Float Preference
+                                if (deltaV <= -0.02) {
+                                    cell.className = "heatmap-cell cell-fl-strong";
+                                } else {
+                                    cell.className = "heatmap-cell cell-fl-weak";
+                                }
+                                cell.innerHTML = `<span>FL</span><span style="font-size:0.45rem; opacity:0.85;">+${(displayDelta * 100).toFixed(1)}%</span>`;
+                            }
                         }
                     }
                     grid.appendChild(cell);
@@ -753,6 +761,9 @@ def execute_optimization_sequence(event: Any) -> None:
     btn.disabled = True; loader.style.display = "block"; err_box.style.display = "none"
     
     try:
+        active_select = document.getElementById("active-player")
+        server_name = active_select.options[active_select.selectedIndex].text if active_select.selectedIndex >= 0 else "Active Server"
+        
         ts_n: int = int(document.getElementById("p_ts_n").value)
         ts_ace_cnt: int = int(document.getElementById("p_ts_ace").value)
         ts_err_cnt: int = int(document.getElementById("p_ts_err").value)
@@ -896,6 +907,7 @@ def execute_optimization_sequence(event: Any) -> None:
             flat_delta_v.append(float(delta_v_grid[u][t][MAP_STATE["OUR_SERVE"]]))
 
     payload: Dict[str, Any] = {
+        "server_name": server_name,
         "best_action": int(policy_grid[score_us][score_them][MAP_STATE["OUR_SERVE"]]), 
         "score_us": int(score_us), 
         "score_them": int(score_them),
