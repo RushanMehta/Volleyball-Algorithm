@@ -394,22 +394,21 @@ def execute_optimization_sequence(event: Any) -> None:
     loader = document.getElementById("loading-indicator")
     err_box = document.getElementById("validation-error-box")
     
-    btn.disabled = True; loader.style.display = "block"; err_box.style.display = "none"
+    btn.disabled = True
+    if loader: loader.style.display = "block"
+    if err_box: err_box.style.display = "none"
     
     troubled_fields = []
     
-    # 1. Fetch raw elements safely
     try:
         active_select = document.getElementById("active-player")
         server_name = "Active Server"
         
-        # Safely resolve select text using safe API calls
         if active_select and active_select.selectedIndex >= 0:
             opt = active_select.options.item(active_select.selectedIndex)
             if opt:
                 server_name = opt.text
         
-        # Pull raw strings
         ts_n_str = document.getElementById("p_ts_n").value
         ts_ace_str = document.getElementById("p_ts_ace").value
         ts_err_str = document.getElementById("p_ts_err").value
@@ -433,11 +432,13 @@ def execute_optimization_sequence(event: Any) -> None:
         score_them_str = document.getElementById("score_them").value
 
     except Exception as e:
-        err_box.innerText = f"DOM Reading Error: {str(e)}"
-        err_box.style.display = "block"
-        btn.disabled = False; loader.style.display = "none"; return
+        if err_box:
+            err_box.innerText = f"DOM Reading Error: {str(e)}"
+            err_box.style.display = "block"
+        btn.disabled = False
+        if loader: loader.style.display = "none"
+        return
 
-    # 2. Check for empty fields first
     inputs_map = {
         "p_ts_n": ts_n_str, "p_ts_ace": ts_ace_str, "p_ts_err": ts_err_str, 
         "p_ts_poor": ts_poor_str, "p_ts_avg": ts_avg_str, "p_ts_perf": ts_perf_str,
@@ -453,11 +454,13 @@ def execute_optimization_sequence(event: Any) -> None:
 
     if troubled_fields:
         js.eval(f"window.highlightInputErrors({json.dumps(troubled_fields)})")
-        err_box.innerText = "Error: Please fill in all empty fields highlighted in red."
-        err_box.style.display = "block"
-        btn.disabled = False; loader.style.display = "none"; return
+        if err_box:
+            err_box.innerText = "Error: Please fill in all empty fields highlighted in red."
+            err_box.style.display = "block"
+        btn.disabled = False
+        if loader: loader.style.display = "none"
+        return
 
-    # 3. Explicit Type Conversions with specific try-blocks
     try:
         ts_n = int(ts_n_str)
         ts_ace_cnt = int(ts_ace_str)
@@ -466,9 +469,12 @@ def execute_optimization_sequence(event: Any) -> None:
         ts_avg_cnt = int(ts_avg_str)
         ts_perf_cnt = int(ts_perf_str)
     except ValueError:
-        err_box.innerText = "Type Error: Please check your Topspin values. Only whole numbers allowed."
-        err_box.style.display = "block"
-        btn.disabled = False; loader.style.display = "none"; return
+        if err_box:
+            err_box.innerText = "Type Error: Please check your Topspin values. Only whole numbers allowed."
+            err_box.style.display = "block"
+        btn.disabled = False
+        if loader: loader.style.display = "none"
+        return
 
     try:
         fl_n = int(fl_n_str)
@@ -478,9 +484,12 @@ def execute_optimization_sequence(event: Any) -> None:
         fl_avg_cnt = int(fl_avg_str)
         fl_perf_cnt = int(fl_perf_str)
     except ValueError:
-        err_box.innerText = "Type Error: Please check your Float values. Only whole numbers allowed."
-        err_box.style.display = "block"
-        btn.disabled = False; loader.style.display = "none"; return
+        if err_box:
+            err_box.innerText = "Type Error: Please check your Float values. Only whole numbers allowed."
+            err_box.style.display = "block"
+        btn.disabled = False
+        if loader: loader.style.display = "none"
+        return
 
     try:
         k_poor = float(opp_poor_str) / 100.0
@@ -488,9 +497,12 @@ def execute_optimization_sequence(event: Any) -> None:
         k_perf = float(opp_perf_str) / 100.0
         our_so = float(our_so_str) / 100.0
     except ValueError:
-        err_box.innerText = "Type Error: Opponent or team statistics must be clean numeric decimals or percentages."
-        err_box.style.display = "block"
-        btn.disabled = False; loader.style.display = "none"; return
+        if err_box:
+            err_box.innerText = "Type Error: Opponent or team statistics must be clean numeric decimals or percentages."
+            err_box.style.display = "block"
+        btn.disabled = False
+        if loader: loader.style.display = "none"
+        return
 
     try:
         score_us = int(score_us_str)
@@ -498,33 +510,39 @@ def execute_optimization_sequence(event: Any) -> None:
     except ValueError:
         score_us, score_them = 17, 17
 
-    # 4. Logical boundaries validation
     if ts_n <= 0: troubled_fields.append("p_ts_n")
     if fl_n <= 0: troubled_fields.append("p_fl_n")
     if troubled_fields:
         js.eval(f"window.highlightInputErrors({json.dumps(troubled_fields)})")
-        err_box.innerText = "Error: Total Serves logged must be greater than zero."
-        err_box.style.display = "block"
-        btn.disabled = False; loader.style.display = "none"; return
+        if err_box:
+            err_box.innerText = "Error: Total Serves logged must be greater than zero."
+            err_box.style.display = "block"
+        btn.disabled = False
+        if loader: loader.style.display = "none"
+        return
 
-    # 5. Exact sums validation
     ts_total_counted = ts_ace_cnt + ts_err_cnt + ts_poor_cnt + ts_avg_cnt + ts_perf_cnt
     if ts_total_counted != ts_n:
         troubled_fields.extend(["p_ts_n", "p_ts_ace", "p_ts_err", "p_ts_poor", "p_ts_avg", "p_ts_perf"])
         js.eval(f"window.highlightInputErrors({json.dumps(troubled_fields)})")
-        err_box.innerHTML = f"Error: Topspin category counts add up to <strong>{ts_total_counted}</strong>, but your Total Serves input is <strong>{ts_n}</strong>."
-        err_box.style.display = "block"
-        btn.disabled = False; loader.style.display = "none"; return
+        if err_box:
+            err_box.innerHTML = f"Error: Topspin category counts add up to <strong>{ts_total_counted}</strong>, but your Total Serves input is <strong>{ts_n}</strong>."
+            err_box.style.display = "block"
+        btn.disabled = False
+        if loader: loader.style.display = "none"
+        return
 
     fl_total_counted = fl_ace_cnt + fl_err_cnt + fl_poor_cnt + fl_avg_cnt + fl_perf_cnt
     if fl_total_counted != fl_n:
         troubled_fields.extend(["p_fl_n", "p_fl_ace", "p_fl_err", "p_fl_poor", "p_fl_avg", "p_fl_perf"])
         js.eval(f"window.highlightInputErrors({json.dumps(troubled_fields)})")
-        err_box.innerHTML = f"Error: Float category counts add up to <strong>{fl_total_counted}</strong>, but your Total Serves input is <strong>{fl_n}</strong>."
-        err_box.style.display = "block"
-        btn.disabled = False; loader.style.display = "none"; return
+        if err_box:
+            err_box.innerHTML = f"Error: Float category counts add up to <strong>{fl_total_counted}</strong>, but your Total Serves input is <strong>{fl_n}</strong>."
+            err_box.style.display = "block"
+        btn.disabled = False
+        if loader: loader.style.display = "none"
+        return
 
-    # 6. Execute Calculations
     deuce_cap: int = FIXED_CAP
     if score_us > deuce_cap or score_them > deuce_cap:
         deuce_cap = max(score_us + WIN_MARGIN, score_them + WIN_MARGIN)
@@ -532,7 +550,7 @@ def execute_optimization_sequence(event: Any) -> None:
     ts_v: List[float] = [ts_ace_cnt/ts_n, ts_err_cnt/ts_n, ts_poor_cnt/ts_n, ts_avg_cnt/ts_n, ts_perf_cnt/ts_n]
     fl_v: List[float] = [fl_ace_cnt/fl_n, fl_err_cnt/fl_n, fl_poor_cnt/fl_n, fl_avg_cnt/fl_n, fl_perf_cnt/fl_n]
 
-    # Team is always serving
+    # Always assume our team is serving
     server_state: int = MAP_STATE["OUR_SERVE"]
 
     model = ProportionalInductionEngine(k_perf, k_avg, k_poor, our_so, deuce_cap)
@@ -663,7 +681,8 @@ def execute_optimization_sequence(event: Any) -> None:
     }
     
     js.eval(f"window.handleEngineCallback('{json.dumps(payload)}')")
-    btn.disabled = False; loader.style.display = "none"
+    btn.disabled = False
+    if loader: loader.style.display = "none"
 </script>
 
 <script>
@@ -684,11 +703,12 @@ def execute_optimization_sequence(event: Any) -> None:
         });
     };
 
-    // 2. Process and display calculations
+    // 2. Process and display the calculation results
     window.handleEngineCallback = function(payloadJson) {
         try {
             const data = JSON.parse(payloadJson);
             
+            // Clear any old validation highlights
             document.querySelectorAll('input').forEach(input => {
                 input.classList.remove('is-invalid');
                 input.style.borderColor = '';
