@@ -51,7 +51,14 @@
         
         .input-group { margin-bottom: 5px; }
         label { display: block; font-weight: 600; margin-bottom: 4px; font-size: 0.8rem; color: #cbd5e1; }
-        input, select { width: 100%; padding: 10px; background: #0f172a; border: 1px solid var(--border); border-radius: 6px; color: white; font-size: 0.9rem; }
+        input, select { width: 100%; padding: 10px; background: #0f172a; border: 1px solid var(--border); border-radius: 6px; color: white; font-size: 0.9rem; transition: all 0.2s ease; }
+        
+        /* Error Highlighting */
+        .input-error {
+            border: 2px solid #ef4444 !important;
+            background-color: #2d161a !important;
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+        }
         
         .score-box { background: #0f172a; border: 1px solid var(--border); padding: 12px; border-radius: 8px; text-align: center; }
         .score-display { font-size: 2.5rem; font-weight: bold; color: white; margin: 2px 0; }
@@ -100,13 +107,13 @@
         .cell-fl-weak { background-color: var(--accent-fl-weak); border: 1px solid #0d9488; }
         .cell-fl-strong { background-color: var(--accent-fl-strong); border: 1px solid #115e59; }
         
-        /* Split Toss-Up Color (Both serves are equal) */
+        /* Split Toss-Up Color */
         .cell-toss-up { 
             background: linear-gradient(135deg, var(--accent-ts-weak) 50%, var(--accent-fl-weak) 50%); 
             border: 1px solid var(--border); 
         }
         
-        /* Game Over Score Cell Style (Grayed out) */
+        /* Game Over Score Cell Style */
         .cell-game-over {
             background-color: #334155 !important;
             opacity: 0.35;
@@ -144,7 +151,7 @@
                     </div>
                     
                     <label style="font-weight:bold; color:var(--accent-ts-weak)">Topspin Serve Performance Logs</label>
-                    <div class="count-entry-row">
+                    <div class="count-entry-row" id="ts-fields-group">
                         <div class="input-group"><label>Total Serves</label><input type="number" id="p_ts_n" value="150" min="1"></div>
                         <div class="input-group"><label>Aces</label><input type="number" id="p_ts_ace" value="22" min="0"></div>
                         <div class="input-group"><label>Errors</label><input type="number" id="p_ts_err" value="38" min="0"></div>
@@ -154,7 +161,7 @@
                     </div>
                     
                     <label style="font-weight:bold; color:var(--accent-fl-weak)">Float Serve Performance Logs</label>
-                    <div class="count-entry-row">
+                    <div class="count-entry-row" id="fl-fields-group">
                         <div class="input-group"><label>Total Serves</label><input type="number" id="p_fl_n" value="220" min="1"></div>
                         <div class="input-group"><label>Aces</label><input type="number" id="p_fl_ace" value="11" min="0"></div>
                         <div class="input-group"><label>Errors</label><input type="number" id="p_fl_err" value="11" min="0"></div>
@@ -280,7 +287,7 @@
 
     <script>
         const SCHEMA_VERSION = 6;
-        const FIXED_CAP = 27; // Set to 27 max cap grid size
+        const FIXED_CAP = 27;
 
         const dom = {
             p_name: document.getElementById("p_name"), p_ts_n: document.getElementById("p_ts_n"), p_ts_ace: document.getElementById("p_ts_ace"),
@@ -353,6 +360,8 @@
                 dom.p_ts_n.value = p.ts[0]; dom.p_ts_ace.value = p.ts[1]; dom.p_ts_err.value = p.ts[2]; dom.p_ts_poor.value = p.ts[3]; dom.p_ts_avg.value = p.ts[4]; dom.p_ts_perf.value = p.ts[5];
                 dom.p_fl_n.value = p.fl[0]; dom.p_fl_ace.value = p.fl[1]; dom.p_fl_err.value = p.fl[2]; dom.p_fl_poor.value = p.fl[3]; dom.p_fl_avg.value = p.fl[4]; dom.p_fl_perf.value = p.fl[5];
             }
+            // Clear previous highlights upon change
+            document.querySelectorAll("input").forEach(el => el.classList.remove("input-error"));
         }
         function updateRosterUI() {
             let r = getRoster();
@@ -395,8 +404,34 @@
             reader.readAsText(file);
         }
         
+        // HELPER TO CLEAR RUNTIME ERRORS
+        function clearInputErrors() {
+            document.querySelectorAll("input").forEach(el => el.classList.remove("input-error"));
+        }
+
+        // TRIGGER VISUAL ERROR ON FIELDS
+        function highlightInputErrors(idsArray) {
+            clearInputErrors();
+            idsArray.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add("input-error");
+            });
+            // Focus on first problematic field and scroll to view
+            if(idsArray.length > 0) {
+                const target = document.getElementById(idsArray[0]);
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    target.focus();
+                }
+            }
+        }
+
         function handleEngineCallback(payload) {
             const data = JSON.parse(payload);
+            
+            // Clean interface states since calculation completed
+            clearInputErrors();
+
             const isTossUp = Math.abs(data.ts_rally - data.fl_rally) < 1e-6;
             
             let color = "var(--accent-fl-weak)";
@@ -517,7 +552,6 @@
             grid.innerHTML = "";
             hContainer.style.display = "block"; 
             
-            // Explicitly title the grid for the specific active server
             hHeader.style.display = "block";
             hHeader.innerHTML = `${serverName}'s Optimal Serving Policy Map & Margin of Advantage (Topspin vs. Float)`;
             
@@ -541,8 +575,6 @@
                     index++;
                     
                     let cell = document.createElement("div");
-                    
-                    // Determine if Game is already mathematically completed (Game Over)
                     const isGameOver = ((u >= 25 || t >= 25) && Math.abs(u - t) >= 2);
                     
                     if (isGameOver) {
@@ -552,17 +584,14 @@
                         let displayDelta = Math.abs(deltaV);
                         
                         if (Math.abs(deltaV) < 1e-6) {
-                            // True Toss-Up: Keep at exactly 0.0% advantage margin
                             cell.className = "heatmap-cell cell-toss-up";
                             cell.innerHTML = `<span>TS/FL</span><span style="font-size:0.45rem; opacity:0.85;">0.0%</span>`;
                         } else {
-                            // Micro-adjust minimum favored state up to 0.1% if mathematically different
                             if (displayDelta < 0.0005) {
                                 displayDelta = 0.001;
                             }
                             
                             if (action === 0) {
-                                // Topspin Preference
                                 if (deltaV >= 0.02) {
                                     cell.className = "heatmap-cell cell-ts-strong";
                                 } else {
@@ -570,7 +599,6 @@
                                 }
                                 cell.innerHTML = `<span>TS</span><span style="font-size:0.45rem; opacity:0.85;">+${(displayDelta * 100).toFixed(1)}%</span>`;
                             } else {
-                                // Float Preference
                                 if (deltaV <= -0.02) {
                                     cell.className = "heatmap-cell cell-fl-strong";
                                 } else {
@@ -607,7 +635,7 @@ MAP_STATE: Dict[str, int] = {"OUR_SERVE": 0, "THEIR_SERVE": 1}
 
 SET_POINTS: int = 25
 WIN_MARGIN: int = 2
-FIXED_CAP: int = 27 # Locked to 27x27 cap sizing
+FIXED_CAP: int = 27
 RANDOM_SEED: int = 42
 
 class ProportionalInductionEngine:
@@ -620,7 +648,6 @@ class ProportionalInductionEngine:
         self.states_allocated: int = 0
 
     def clamp_probability(self, value: float) -> float:
-        # Prevents absolute certitude predictions (locks limits to 0.01% - 99.9%)
         return max(0.0001, min(0.999, value))
 
     def compute_rally_metrics(self, vector: List[float]) -> float:
@@ -634,7 +661,6 @@ class ProportionalInductionEngine:
         delta_v_grid: List[List[List[float]]] = [[[0.0] * 2 for _ in range(dim)] for _ in range(dim)]
         self.states_allocated = 0
 
-        # Structural base values setup
         for u in range(dim):
             for t in range(dim):
                 if u >= SET_POINTS and (u - t) >= WIN_MARGIN:
@@ -652,7 +678,6 @@ class ProportionalInductionEngine:
                         v_grid[u][t][MAP_STATE["OUR_SERVE"]] = val
                         v_grid[u][t][MAP_STATE["THEIR_SERVE"]] = val
 
-        # Bottom-up recursion across score states
         for sum_sc in range(2 * self.max_cap, -1, -1):
             for u in range(self.max_cap + 1):
                 t = sum_sc - u
@@ -664,18 +689,15 @@ class ProportionalInductionEngine:
                 u_next = min(u + 1, dim - 1)
                 t_next = min(t + 1, dim - 1)
 
-                # Opponent Serve Equation
                 opp_serve_equity = (self.our_sideout * v_grid[u_next][t][MAP_STATE["OUR_SERVE"]]) + ((1.0 - self.our_sideout) * v_grid[u][t_next][MAP_STATE["THEIR_SERVE"]])
                 v_grid[u][t][MAP_STATE["THEIR_SERVE"]] = self.clamp_probability(opp_serve_equity)
 
-                # Our Serve Option Equations
                 equity_ts = (p_win_ts * v_grid[u_next][t][MAP_STATE["OUR_SERVE"]]) + ((1.0 - p_win_ts) * v_grid[u][t_next][MAP_STATE["THEIR_SERVE"]])
                 equity_fl = (p_win_fl * v_grid[u_next][t][MAP_STATE["OUR_SERVE"]]) + ((1.0 - p_win_fl) * v_grid[u][t_next][MAP_STATE["THEIR_SERVE"]])
                 
                 diff = equity_ts - equity_fl
                 delta_v_grid[u][t][MAP_STATE["OUR_SERVE"]] = diff
                 
-                # Dynamic optimization logic
                 if abs(diff) < 1e-6:
                     v_grid[u][t][MAP_STATE["OUR_SERVE"]] = self.clamp_probability(equity_ts)
                     policy_grid[u][t][MAP_STATE["OUR_SERVE"]] = MAP_ACTION["TOPSPIN"]
@@ -686,7 +708,6 @@ class ProportionalInductionEngine:
                     v_grid[u][t][MAP_STATE["OUR_SERVE"]] = self.clamp_probability(equity_fl)
                     policy_grid[u][t][MAP_STATE["OUR_SERVE"]] = MAP_ACTION["FLOAT"]
 
-        # Scale corrections to ensure score symmetry
         v_grid = self._normalize_symmetrical_equity(v_grid, p_win_ts, p_win_fl)
 
         return v_grid, policy_grid, delta_v_grid
@@ -760,41 +781,109 @@ def execute_optimization_sequence(event: Any) -> None:
     
     btn.disabled = True; loader.style.display = "block"; err_box.style.display = "none"
     
+    # Track which input elements need error styling
+    troubled_fields = []
+    
     try:
         active_select = document.getElementById("active-player")
         server_name = active_select.options[active_select.selectedIndex].text if active_select.selectedIndex >= 0 else "Active Server"
         
-        ts_n: int = int(document.getElementById("p_ts_n").value)
-        ts_ace_cnt: int = int(document.getElementById("p_ts_ace").value)
-        ts_err_cnt: int = int(document.getElementById("p_ts_err").value)
-        ts_poor_cnt: int = int(document.getElementById("p_ts_poor").value)
-        ts_avg_cnt: int = int(document.getElementById("p_ts_avg").value)
-        ts_perf_cnt: int = int(document.getElementById("p_ts_perf").value)
+        # Pull DOM Raw Inputs to check values
+        ts_n_val = document.getElementById("p_ts_n").value
+        ts_ace_val = document.getElementById("p_ts_ace").value
+        ts_err_val = document.getElementById("p_ts_err").value
+        ts_poor_val = document.getElementById("p_ts_poor").value
+        ts_avg_val = document.getElementById("p_ts_avg").value
+        ts_perf_val = document.getElementById("p_ts_perf").value
         
-        fl_n: int = int(document.getElementById("p_fl_n").value)
-        fl_ace_cnt: int = int(document.getElementById("p_fl_ace").value)
-        fl_err_cnt: int = int(document.getElementById("p_fl_err").value)
-        fl_poor_cnt: int = int(document.getElementById("p_fl_poor").value)
-        fl_avg_cnt: int = int(document.getElementById("p_fl_avg").value)
-        fl_perf_cnt: int = int(document.getElementById("p_fl_perf").value)
+        fl_n_val = document.getElementById("p_fl_n").value
+        fl_ace_val = document.getElementById("p_fl_ace").value
+        fl_err_val = document.getElementById("p_fl_err").value
+        fl_poor_val = document.getElementById("p_fl_poor").value
+        fl_avg_val = document.getElementById("p_fl_avg").value
+        fl_perf_val = document.getElementById("p_fl_perf").value
+
+        # Check for empty numeric inputs
+        if not ts_n_val: troubled_fields.append("p_ts_n")
+        if not ts_ace_val: troubled_fields.append("p_ts_ace")
+        if not ts_err_val: troubled_fields.append("p_ts_err")
+        if not ts_poor_val: troubled_fields.append("p_ts_poor")
+        if not ts_avg_val: troubled_fields.append("p_ts_avg")
+        if not ts_perf_val: troubled_fields.append("p_ts_perf")
         
-        k_poor: float = float(document.getElementById("opp_kill_poor").value) / 100.0
-        k_avg: float = float(document.getElementById("opp_kill_average").value) / 100.0
-        k_perf: float = float(document.getElementById("opp_kill_perfect").value) / 100.0
-        our_so: float = float(document.getElementById("our_sideout_rate").value) / 100.0
+        if not fl_n_val: troubled_fields.append("p_fl_n")
+        if not fl_ace_val: troubled_fields.append("p_fl_ace")
+        if not fl_err_val: troubled_fields.append("p_fl_err")
+        if not fl_poor_val: troubled_fields.append("p_fl_poor")
+        if not fl_avg_val: troubled_fields.append("p_fl_avg")
+        if not fl_perf_val: troubled_fields.append("p_fl_perf")
         
-        score_us: int = int(document.getElementById("score_us").value)
-        score_them: int = int(document.getElementById("score_them").value)
+        opp_poor_val = document.getElementById("opp_kill_poor").value
+        opp_avg_val = document.getElementById("opp_kill_average").value
+        opp_perf_val = document.getElementById("opp_kill_perfect").value
+        our_so_val = document.getElementById("our_sideout_rate").value
+        
+        if not opp_poor_val: troubled_fields.append("opp_kill_poor")
+        if not opp_avg_val: troubled_fields.append("opp_kill_average")
+        if not opp_perf_val: troubled_fields.append("opp_kill_perfect")
+        if not our_so_val: troubled_fields.append("our_sideout_rate")
+
+        if troubled_fields:
+            js.eval(f"window.highlightInputErrors({json.dumps(troubled_fields)})")
+            err_box.innerText = "Error: Please fill in all numeric entry fields marked in red."; err_box.style.display = "block"
+            btn.disabled = False; loader.style.display = "none"; return
+
+        ts_n = int(ts_n_val)
+        ts_ace_cnt = int(ts_ace_val)
+        ts_err_cnt = int(ts_err_val)
+        ts_poor_cnt = int(ts_poor_val)
+        ts_avg_cnt = int(ts_avg_val)
+        ts_perf_cnt = int(ts_perf_val)
+        
+        fl_n = int(fl_n_val)
+        fl_ace_cnt = int(fl_ace_val)
+        fl_err_cnt = int(fl_err_val)
+        fl_poor_cnt = int(fl_poor_val)
+        fl_avg_cnt = int(fl_avg_val)
+        fl_perf_cnt = int(fl_perf_val)
+        
+        k_poor = float(opp_poor_val) / 100.0
+        k_avg = float(opp_avg_val) / 100.0
+        k_perf = float(opp_perf_val) / 100.0
+        our_so = float(our_so_val) / 100.0
+        
+        score_us = int(document.getElementById("score_us").value)
+        score_them = int(document.getElementById("score_them").value)
     except Exception:
         err_box.innerText = "Value Format Issue: Please ensure all input fields contain valid digits."; err_box.style.display = "block"; btn.disabled = False; loader.style.display = "none"; return
 
-    if ts_n <= 0 or fl_n <= 0:
-        err_box.innerText = "Calculations require serve log totals higher than 0."; err_box.style.display = "block"; btn.disabled = False; loader.style.display = "none"; return
-        
-    if (ts_ace_cnt + ts_err_cnt + ts_poor_cnt + ts_avg_cnt + ts_perf_cnt) != ts_n or (fl_ace_cnt + fl_err_cnt + fl_poor_cnt + fl_avg_cnt + fl_perf_cnt) != fl_n:
-        err_box.innerText = "Your detailed serve outcome counts do not match the total serves logged."; err_box.style.display = "block"; btn.disabled = False; loader.style.display = "none"; return
+    # Check that baseline serve counts are positive numbers
+    if ts_n <= 0: troubled_fields.append("p_ts_n")
+    if fl_n <= 0: troubled_fields.append("p_fl_n")
+    if troubled_fields:
+        js.eval(f"window.highlightInputErrors({json.dumps(troubled_fields)})")
+        err_box.innerText = "Error: Total Serves logged must be greater than zero."; err_box.style.display = "block"
+        btn.disabled = False; loader.style.display = "none"; return
 
-    deuce_cap: int = FIXED_CAP # Permanently locked to 27
+    # Validate topspin partition counts matches total
+    ts_total_counted = ts_ace_cnt + ts_err_cnt + ts_poor_cnt + ts_avg_cnt + ts_perf_cnt
+    if ts_total_counted != ts_n:
+        troubled_fields.extend(["p_ts_n", "p_ts_ace", "p_ts_err", "p_ts_poor", "p_ts_avg", "p_ts_perf"])
+        js.eval(f"window.highlightInputErrors({json.dumps(troubled_fields)})")
+        err_box.innerHTML = f"Error: Topspin category counts add up to <strong>{ts_total_counted}</strong>, but Total Serves is set to <strong>{ts_n}</strong>. Adjust values to match."
+        err_box.style.display = "block"
+        btn.disabled = False; loader.style.display = "none"; return
+
+    # Validate float partition counts matches total
+    fl_total_counted = fl_ace_cnt + fl_err_cnt + fl_poor_cnt + fl_avg_cnt + fl_perf_cnt
+    if fl_total_counted != fl_n:
+        troubled_fields.extend(["p_fl_n", "p_fl_ace", "p_fl_err", "p_fl_poor", "p_fl_avg", "p_fl_perf"])
+        js.eval(f"window.highlightInputErrors({json.dumps(troubled_fields)})")
+        err_box.innerHTML = f"Error: Float category counts add up to <strong>{fl_total_counted}</strong>, but Total Serves is set to <strong>{fl_n}</strong>. Adjust values to match."
+        err_box.style.display = "block"
+        btn.disabled = False; loader.style.display = "none"; return
+
+    deuce_cap: int = FIXED_CAP
     if score_us > deuce_cap or score_them > deuce_cap:
         deuce_cap = max(score_us + WIN_MARGIN, score_them + WIN_MARGIN)
 
@@ -812,7 +901,6 @@ def execute_optimization_sequence(event: Any) -> None:
     resolved_equity: float = model.clamp_probability(v_grid[score_us][score_them][server_state])
     t_dp: float = (time.time() - t0) * 1000.0
 
-    # Proportional sensitivity analyzer
     h: float = 0.01
     sens_deltas: List[float] = []
 
@@ -845,14 +933,12 @@ def execute_optimization_sequence(event: Any) -> None:
     ts_low, ts_high = model.compute_wilson_score_bounds_from_counts(ts_expected_wins, ts_n)
     fl_low, fl_high = model.compute_wilson_score_bounds_from_counts(fl_expected_wins, fl_n)
 
-    # Fixed execution parameters for stability and accuracy
     high_precision_trials: int = 10000
     mc_equity: float = model.run_policy_simulation(score_us, score_them, server_state, ts_rally, fl_rally, policy_grid, high_precision_trials, "optimal")
     mc_always_ts_equity: float = model.run_policy_simulation(score_us, score_them, server_state, ts_rally, fl_rally, policy_grid, high_precision_trials, "always_ts")
     mc_always_fl_equity: float = model.run_policy_simulation(score_us, score_them, server_state, ts_rally, fl_rally, policy_grid, high_precision_trials, "always_fl")
     mc_naive_equity: float = model.run_policy_simulation(score_us, score_them, server_state, ts_rally, fl_rally, policy_grid, high_precision_trials, "naive")
 
-    # Historical Validation Database (32 actual sets evaluated)
     validation_historical_dataset: List[Dict[str, Any]] = [
         {"us": 12, "them": 14, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "us"},
         {"us": 24, "them": 23, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "us"},
