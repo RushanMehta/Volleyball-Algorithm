@@ -3,240 +3,625 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Volleyball Serve Optimization Engine</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Volleyball Serve Optimization Decision Framework</title>
+    
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
+
     <style>
-        body {
-            background-color: #f8f9fa;
-            padding-top: 2rem;
-            padding-bottom: 4rem;
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent-ts-strong: #1d4ed8;
+            --accent-ts-weak: #3b82f6;
+            --accent-fl-weak: #0d9488;
+            --accent-fl-strong: #0f766e;
+            --border: #334155;
+            --recommend: #22c55e;
+            --warn-low: #ef4444;
+            --warn-med: #f59e0b;
         }
-        .card {
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            margin-bottom: 1.5rem;
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: var(--bg-primary); color: var(--text-main); padding: 10px; }
+        
+        .container { max-width: 1300px; margin: 0 auto; background: var(--bg-secondary); padding: 15px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+        h1 { color: #f1f5f9; text-align: center; margin-bottom: 5px; font-size: 1.6rem; font-weight: 700; }
+        .subtitle { text-align: center; color: #60a5fa; margin-bottom: 20px; font-size: 0.95rem; font-weight: 500; letter-spacing: 0.3px; }
+        .section-title { font-size: 1.05rem; font-weight: bold; color: #f1f5f9; border-bottom: 2px solid var(--border); padding-bottom: 6px; margin-top: 20px; margin-bottom: 12px; }
+        
+        .grid-layout { display: flex; flex-direction: column; gap: 20px; }
+        .column { display: flex; flex-direction: column; gap: 15px; }
+        
+        .count-entry-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 8px; }
+        @media (min-width: 480px) { .count-entry-row { grid-template-columns: repeat(3, 1fr); } }
+        @media (min-width: 768px) { .count-entry-row { grid-template-columns: repeat(6, 1fr); } }
+        
+        .grid-2 { display: grid; grid-template-columns: 1fr; gap: 15px; }
+        @media (min-width: 600px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
+        
+        @media (min-width: 1024px) {
+            body { padding: 20px; }
+            .container { padding: 30px; }
+            h1 { font-size: 1.9rem; }
+            .grid-layout { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 25px; }
         }
-        .metric-card {
-            background-color: #ffffff;
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
-            padding: 1rem;
-            text-align: center;
+        
+        .input-group { margin-bottom: 5px; }
+        label { display: block; font-weight: 600; margin-bottom: 4px; font-size: 0.8rem; color: #cbd5e1; }
+        input, select { width: 100%; padding: 10px; background: #0f172a; border: 1px solid var(--border); border-radius: 6px; color: white; font-size: 0.9rem; transition: all 0.2s ease; }
+        
+        /* Error Highlighting */
+        .input-error {
+            border: 2px solid #ef4444 !important;
+            background-color: #2d161a !important;
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
         }
-        .metric-val {
-            font-size: 1.8rem;
-            font-weight: 700;
+        
+        .score-box { background: #0f172a; border: 1px solid var(--border); padding: 12px; border-radius: 8px; text-align: center; }
+        .score-display { font-size: 2.5rem; font-weight: bold; color: white; margin: 2px 0; }
+        .btn-score { background: #334155; color: white; border: none; padding: 8px 16px; font-size: 1.1rem; font-weight: bold; border-radius: 6px; cursor: pointer; margin: 0 4px; }
+        
+        .btn-recommend { width: 100%; background-color: #4f46e5; color: white; border: none; padding: 14px; font-size: 1.05rem; font-weight: bold; border-radius: 8px; cursor: pointer; margin-top: 10px; }
+        .btn-recommend:disabled { background-color: #1e1b4b; color: #64748b; cursor: not-allowed; }
+        .btn-secondary { background-color: #10b981; color: white; border: none; padding: 10px; font-weight: bold; border-radius: 6px; cursor: pointer; }
+        .btn-reset { background-color: #ef4444; color: white; border: none; padding: 10px; font-weight: bold; border-radius: 6px; cursor: pointer; }
+        
+        .result-box { background-color: #0f172a; border: 1px solid var(--border); padding: 15px; margin-top: 20px; border-radius: 8px; }
+        .recommendation-banner { padding: 15px; margin-bottom: 15px; border-radius: 6px; display: flex; flex-direction: column; gap: 8px; }
+        .rec-header { font-size: 1.3rem; font-weight: 800; display: flex; flex-direction: column; gap: 4px; }
+        @media (min-width: 480px) { .rec-header { flex-direction: row; justify-content: space-between; align-items: center; } }
+        
+        .roster-list { max-height: 120px; overflow-y: auto; background: #0f172a; border: 1px solid var(--border); border-radius: 6px; padding: 6px; margin-top: 10px; }
+        .roster-item { display: flex; justify-content: space-between; align-items: center; padding: 6px; font-size: 0.8rem; border-bottom: 1px solid var(--border); }
+        .btn-delete { background: #ef4444; color: white; border: none; border-radius: 4px; padding: 2px 6px; cursor: pointer; }
+        .error-msg { background-color: #7f1d1d; color: #fca5a5; padding: 12px; border-radius: 6px; border: 1px solid #b91c1c; margin-top: 15px; font-weight: bold; display: none; font-size: 0.85rem; }
+        
+        .tab-container { display: flex; overflow-x: auto; gap: 5px; border-bottom: 1px solid var(--border); margin-bottom: 15px; white-space: nowrap; }
+        .tab { padding: 10px 15px; cursor: pointer; background: transparent; border: none; color: var(--text-muted); font-weight: 600; font-size: 0.85rem; }
+        .tab.active { color: white; border-bottom: 2px solid var(--accent-ts-weak); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85rem; }
+        th, td { padding: 8px; border: 1px solid var(--border); text-align: left; }
+        th { background: #0f172a; }
+        
+        .badge { padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; display: inline-block; }
+        .badge-low { background: var(--warn-low); color: white; }
+        .badge-med { background: var(--warn-med); color: black; }
+        .badge-high { background: var(--recommend); color: white; }
+        
+        .tornado-bar { height: 14px; background: #3b82f6; border-radius: 3px; display: inline-block; min-width: 4px; }
+        #loading-indicator { display: none; text-align: center; color: var(--warn-med); font-weight: bold; margin-top: 10px; font-size: 0.9rem; }
+
+        .heatmap-scroll { overflow-x: auto; margin-top: 12px; background: #0f172a; padding: 10px; border-radius: 8px; border: 1px solid var(--border); }
+        .heatmap-grid { display: grid; gap: 1px; min-width: 550px; }
+        .heatmap-cell { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 0.55rem; font-weight: bold; border-radius: 1px; color: white; line-height: 1.1; }
+        
+        /* Grid Diverging Color Gradients */
+        .cell-ts-strong { background-color: var(--accent-ts-strong); border: 1px solid #1e40af; }
+        .cell-ts-weak { background-color: var(--accent-ts-weak); border: 1px solid #2563eb; }
+        .cell-fl-weak { background-color: var(--accent-fl-weak); border: 1px solid #0d9488; }
+        .cell-fl-strong { background-color: var(--accent-fl-strong); border: 1px solid #115e59; }
+        
+        /* Split Toss-Up Color */
+        .cell-toss-up { 
+            background: linear-gradient(135deg, var(--accent-ts-weak) 50%, var(--accent-fl-weak) 50%); 
+            border: 1px solid var(--border); 
         }
+        
+        /* Game Over Score Cell Style */
+        .cell-game-over {
+            background-color: #334155 !important;
+            opacity: 0.35;
+            border: 1px dashed var(--border);
+            color: var(--text-muted);
+        }
+        
+        .cell-header { color: var(--text-muted); font-size: 0.6rem; background: transparent; }
+        
+        .legend { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: 0.75rem; color: var(--text-muted); }
+        .legend-item { display: flex; align-items: center; gap: 5px; }
+        .legend-color { width: 12px; height: 12px; border-radius: 2px; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <header class="text-center mb-5">
-        <h1 class="display-5 fw-bold text-primary">Serve Optimization Engine</h1>
-        <p class="lead text-muted">Determine your optimal serving strategy based on live performance parameters</p>
-    </header>
+    <div class="container">
+        <h1>Coaches' Serve Optimization Assistant</h1>
+        <div class="subtitle">Smart Match Planning & Decision Engine for High School and Club Volleyball</div>
+        
+        <div class="tab-container">
+            <button class="tab active" onclick="switchTab(event, 'tab-engine')">Interactive Dashboard</button>
+            <button class="tab" onclick="switchTab(event, 'tab-validation')">Validation & Baseline Comparisons</button>
+            <button class="tab" onclick="switchTab(event, 'tab-model-details')">How the Math Works</button>
+        </div>
 
-    <div class="row">
-        <div class="col-lg-8">
-            <div id="validation-error-box" class="alert alert-danger" style="display: none;" role="alert"></div>
+        <div id="tab-engine" class="tab-content active">
+            <div class="grid-layout">
+                <div class="column">
+                    <div class="section-title">1. Your Server's Practice & Game Stats</div>
+                    
+                    <div class="input-group" style="max-width: 300px; margin-bottom: 15px;">
+                        <label>Player Name</label>
+                        <input type="text" id="p_name" placeholder="e.g., Sarah">
+                    </div>
+                    
+                    <label style="font-weight:bold; color:var(--accent-ts-weak)">Topspin Serve Performance Logs</label>
+                    <div class="count-entry-row" id="ts-fields-group">
+                        <div class="input-group"><label>Total Serves</label><input type="number" id="p_ts_n" value="150" min="1"></div>
+                        <div class="input-group"><label>Aces</label><input type="number" id="p_ts_ace" value="22" min="0"></div>
+                        <div class="input-group"><label>Errors</label><input type="number" id="p_ts_err" value="38" min="0"></div>
+                        <div class="input-group"><label>Poor Pass Cnt</label><input type="number" id="p_ts_poor" value="45" min="0"></div>
+                        <div class="input-group"><label>Avg Pass Cnt</label><input type="number" id="p_ts_avg" value="30" min="0"></div>
+                        <div class="input-group"><label>Perf Pass Cnt</label><input type="number" id="p_ts_perf" value="15" min="0"></div>
+                    </div>
+                    
+                    <label style="font-weight:bold; color:var(--accent-fl-weak)">Float Serve Performance Logs</label>
+                    <div class="count-entry-row" id="fl-fields-group">
+                        <div class="input-group"><label>Total Serves</label><input type="number" id="p_fl_n" value="220" min="1"></div>
+                        <div class="input-group"><label>Aces</label><input type="number" id="p_fl_ace" value="11" min="0"></div>
+                        <div class="input-group"><label>Errors</label><input type="number" id="p_fl_err" value="11" min="0"></div>
+                        <div class="input-group"><label>Poor Pass Cnt</label><input type="number" id="p_fl_poor" value="33" min="0"></div>
+                        <div class="input-group"><label>Avg Pass Cnt</label><input type="number" id="p_fl_avg" value="99" min="0"></div>
+                        <div class="input-group"><label>Perf Pass Cnt</label><input type="number" id="p_fl_perf" value="66" min="0"></div>
+                    </div>
 
-            <div class="card p-4">
-                <h3 class="h5 mb-4 text-secondary">1. Match Setup & Server</h3>
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label for="active-player" class="form-label fw-semibold">Active Server</label>
-                        <select id="active-player" class="form-select">
-                            <option value="target_a">Elite Target A</option>
-                            <option value="target_b">Power Server B</option>
-                        </select>
+                    <div class="grid-2" style="margin-top: 10px;">
+                        <button class="btn-secondary" onclick="addPlayer()">Save Player Stats</button>
+                        <button class="btn-reset" onclick="resetEngineState()">Clear Saved Roster</button>
                     </div>
-                    <div class="col-md-3">
-                        <label for="score_us" class="form-label fw-semibold">Our Score</label>
-                        <input type="number" id="score_us" class="form-control" value="17" min="0">
+                    
+                    <div class="roster-list" id="roster-view"></div>
+                    
+                    <div class="grid-2">
+                        <button class="btn-secondary" style="background:#475569;" onclick="exportProfilesJSON()">Export (Save to Computer)</button>
+                        <input type="file" id="import-file" style="display:none;" onchange="importProfilesJSON(event)">
+                        <button class="btn-secondary" style="background:#475569;" onclick="document.getElementById('import-file').click()">Import (Load from Computer)</button>
                     </div>
-                    <div class="col-md-3">
-                        <label for="score_them" class="form-label fw-semibold">Their Score</label>
-                        <input type="number" id="score_them" class="form-control" value="17" min="0">
+
+                    <div class="section-title">2. Opponent Performance Stats</div>
+                    <div class="grid-2">
+                        <div class="input-group"><label>Opponent Attack Win % on a POOR pass</label><input type="number" id="opp_kill_poor" value="38" min="0" max="100"></div>
+                        <div class="input-group"><label>Opponent Attack Win % on an AVERAGE pass</label><input type="number" id="opp_kill_average" value="48" min="0" max="100"></div>
                     </div>
+                    <div class="grid-2">
+                        <div class="input-group"><label>Opponent Attack Win % on a PERFECT pass</label><input type="number" id="opp_kill_perfect" value="64" min="0" max="100"></div>
+                        <div class="input-group"><label>Our Side-Out Probability (Win receive point) %</label><input type="number" id="our_sideout_rate" value="65" min="0" max="100"></div>
+                    </div>
+                </div>
+
+                <div class="column">
+                    <div class="section-title">3. Current Match Context & Score</div>
+                    <div class="grid-2">
+                        <div class="input-group">
+                            <label>Active Server Profile</label>
+                            <select id="active-player" onchange="loadActivePlayerStats()"></select>
+                        </div>
+                        <div class="input-group">
+                            <label>Current Serve Possession</label>
+                            <select id="current_poss" style="border: 2px solid #f59e0b;">
+                                <option value="us">Our Team is Serving</option>
+                                <option value="them">Opponent Team is Serving</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid-2">
+                        <div class="score-box">
+                            <label style="color:var(--accent-ts-weak); font-weight:bold;">OUR SCORE</label>
+                            <div class="score-display" id="disp_us">17</div>
+                            <button class="btn-score" onclick="adjustScore('us', 1)">+</button>
+                            <button class="btn-score" onclick="adjustScore('us', -1)">-</button>
+                            <input type="hidden" id="score_us" value="17">
+                        </div>
+                        <div class="score-box">
+                            <label style="color:#ef4444; font-weight:bold;">OPPONENT SCORE</label>
+                            <div class="score-display" id="disp_them">17</div>
+                            <button class="btn-score" onclick="adjustScore('them', 1)">+</button>
+                            <button class="btn-score" onclick="adjustScore('them', -1)">-</button>
+                            <input type="hidden" id="score_them" value="17">
+                        </div>
+                    </div>
+                    
+                    <button id="calc-opt-btn" class="btn-recommend" py-click="execute_optimization_sequence">Calculate Best Serve Option</button>
+                    <div id="loading-indicator">Computing optimal strategies over 27 score coordinates...</div>
+                    <div id="validation-error-box" class="error-msg"></div>
                 </div>
             </div>
 
-            <div class="card p-4">
-                <h3 class="h5 mb-4 text-secondary">2. Serving Profiles (Counts)</h3>
-                
-                <h4 class="h6 text-primary border-bottom pb-2 mb-3">Topspin Serve Stats</h4>
-                <div class="row g-3 mb-4">
-                    <div class="col-sm-2">
-                        <label for="p_ts_n" class="form-label">Total N</label>
-                        <input type="number" id="p_ts_n" class="form-control" value="100" min="1">
-                    </div>
-                    <div class="col-sm-2">
-                        <label for="p_ts_ace" class="form-label">Aces</label>
-                        <input type="number" id="p_ts_ace" class="form-control" value="15" min="0">
-                    </div>
-                    <div class="col-sm-2">
-                        <label for="p_ts_err" class="form-label">Errors</label>
-                        <input type="number" id="p_ts_err" class="form-control" value="20" min="0">
-                    </div>
-                    <div class="col-sm-2">
-                        <label for="p_ts_poor" class="form-label">Poor Pass</label>
-                        <input type="number" id="p_ts_poor" class="form-control" value="25" min="0">
-                    </div>
-                    <div class="col-sm-2">
-                        <label for="p_ts_avg" class="form-label">Avg Pass</label>
-                        <input type="number" id="p_ts_avg" class="form-control" value="30" min="0">
-                    </div>
-                    <div class="col-sm-2">
-                        <label for="p_ts_perf" class="form-label">Perf Pass</label>
-                        <input type="number" id="p_ts_perf" class="form-control" value="10" min="0">
-                    </div>
-                </div>
-
-                <h4 class="h6 text-info border-bottom pb-2 mb-3">Float Serve Stats</h4>
-                <div class="row g-3">
-                    <div class="col-sm-2">
-                        <label for="p_fl_n" class="form-label">Total N</label>
-                        <input type="number" id="p_fl_n" class="form-control" value="100" min="1">
-                    </div>
-                    <div class="col-sm-2">
-                        <label for="p_fl_ace" class="form-label">Aces</label>
-                        <input type="number" id="p_fl_ace" class="form-control" value="8" min="0">
-                    </div>
-                    <div class="col-sm-2">
-                        <label for="p_fl_err" class="form-label">Errors</label>
-                        <input type="number" id="p_fl_err" class="form-control" value="5" min="0">
-                    </div>
-                    <div class="col-sm-2">
-                        <label for="p_fl_poor" class="form-label">Poor Pass</label>
-                        <input type="number" id="p_fl_poor" class="form-control" value="32" min="0">
-                    </div>
-                    <div class="col-sm-2">
-                        <label for="p_fl_avg" class="form-label">Avg Pass</label>
-                        <input type="number" id="p_fl_avg" class="form-control" value="45" min="0">
-                    </div>
-                    <div class="col-sm-2">
-                        <label for="p_fl_perf" class="form-label">Perf Pass</label>
-                        <input type="number" id="p_fl_perf" class="form-control" value="10" min="0">
-                    </div>
+            <div class="result-box">
+                <div id="output-rec">
+                    <div style="color: var(--text-muted); text-align: center; padding: 20px;">Input performance stats and calculate to show recommended decisions here.</div>
                 </div>
             </div>
 
-            <div class="card p-4">
-                <h3 class="h5 mb-4 text-secondary">3. Opponent Attack Rates (%)</h3>
-                <div class="row g-3">
-                    <div class="col-md-3 col-sm-6">
-                        <label for="opp_kill_poor" class="form-label">Kill on Poor Pass</label>
-                        <div class="input-group">
-                            <input type="number" id="opp_kill_poor" class="form-control" value="28" min="0" max="100">
-                            <span class="input-group-text">%</span>
-                        </div>
-                    </div>
-                    <div class="col-md-3 col-sm-6">
-                        <label for="opp_kill_average" class="form-label">Kill on Avg Pass</label>
-                        <div class="input-group">
-                            <input type="number" id="opp_kill_average" class="form-control" value="48" min="0" max="100">
-                            <span class="input-group-text">%</span>
-                        </div>
-                    </div>
-                    <div class="col-md-3 col-sm-6">
-                        <label for="opp_kill_perfect" class="form-label">Kill on Perf Pass</label>
-                        <div class="input-group">
-                            <input type="number" id="opp_kill_perfect" class="form-control" value="68" min="0" max="100">
-                            <span class="input-group-text">%</span>
-                        </div>
-                    </div>
-                    <div class="col-md-3 col-sm-6">
-                        <label for="our_sideout_rate" class="form-label">Our Sideout Rate</label>
-                        <div class="input-group">
-                            <input type="number" id="our_sideout_rate" class="form-control" value="55" min="0" max="100">
-                            <span class="input-group-text">%</span>
-                        </div>
-                    </div>
+            <div class="section-title" id="policy-map-header" style="display:none;">Optimal Serving Policy Map & Margin of Advantage (Topspin vs. Float)</div>
+            <div class="heatmap-scroll" id="policy-map-container" style="display:none;">
+                <div class="legend">
+                    <div class="legend-item"><div class="legend-color cell-ts-strong"></div><strong>TS Strong</strong> (Topspin Wins by &ge; 2% Equity)</div>
+                    <div class="legend-item"><div class="legend-color cell-ts-weak"></div><strong>TS Mild</strong> (Topspin Wins by &lt; 2% Equity)</div>
+                    <div class="legend-item"><div class="legend-color cell-toss-up"></div><strong>Toss-Up / Equal</strong> (Flat 0.0% Difference)</div>
+                    <div class="legend-item"><div class="legend-color cell-fl-weak"></div><strong>FL Mild</strong> (Float Wins by &lt; 2% Equity)</div>
+                    <div class="legend-item"><div class="legend-color cell-fl-strong"></div><strong>FL Strong</strong> (Float Wins by &ge; 2% Equity)</div>
+                    <div class="legend-item"><div class="legend-color cell-game-over" style="width:12px; height:12px; border-radius:2px;"></div><strong>Set Over</strong> (Grayed out scores)</div>
                 </div>
-            </div>
-
-            <div class="d-grid mb-4">
-                <button id="calc-opt-btn" class="btn btn-primary btn-lg py-3 fw-bold" py-click="execute_optimization_sequence">
-                    Optimize Strategy
-                </button>
-                <div id="loading-indicator" class="text-center mt-3" style="display: none;">
-                    <div class="spinner-border text-primary" role="status"></div>
-                    <p class="text-muted mt-2">Computing Dynamic Programming Policy...</p>
-                </div>
+                <div class="heatmap-grid" id="policy-heatmap" style="margin-top: 15px;"></div>
             </div>
         </div>
 
-        <div class="col-lg-4">
-            <div class="card p-4 bg-dark text-white">
-                <h3 class="h5 mb-3 text-secondary">Optimal Decision</h3>
-                <div class="metric-card bg-secondary bg-opacity-25 border-0 mb-3 text-center">
-                    <div class="text-uppercase tracking-wider small text-muted">Serve Selection</div>
-                    <div id="optimal-action-output" class="metric-val text-warning">--</div>
-                </div>
-                <div class="metric-card bg-secondary bg-opacity-25 border-0 text-center">
-                    <div class="text-uppercase tracking-wider small text-muted">Est. Win Probability</div>
-                    <div id="win-probability-output" class="metric-val text-success">--</div>
-                </div>
+        <div id="tab-validation" class="tab-content">
+            <div class="section-title">Validation Against Real Matches & Traditional Strategies</div>
+            <p style="margin-bottom: 15px; color: var(--text-muted);">
+                Below are real performance benchmarks verifying this model's recommendations against standard strategies and historical match outcomes.
+            </p>
+            <div id="output-validation-metrics">
+                <p style="color:var(--text-muted)">Perform an evaluation calculation on the dashboard to output comparison charts.</p>
             </div>
+        </div>
 
-            <div class="card p-4">
-                <h3 class="h5 mb-3 text-secondary font-weight-bold">Serve Quality Analysis</h3>
-                <ul class="list-group list-group-flush">
-                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                        Topspin Point Win %
-                        <span id="ts-rally-output" class="fw-bold text-dark">--</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                        Topspin 95% Confidence Bounds
-                        <span id="ts-confidence-interval" class="small text-muted">--</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between align-items-center px-0 mb-3">
-                        Float Point Win %
-                        <span id="fl-rally-output" class="fw-bold text-dark">--</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                        Float 95% Confidence Bounds
-                        <span id="fl-confidence-interval" class="small text-muted">--</span>
-                    </li>
-                </ul>
-            </div>
-
-            <div class="card p-4">
-                <h3 class="h5 mb-3 text-secondary">Simulation Engine</h3>
-                <ul class="list-group list-group-flush">
-                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                        Monte Carlo (Optimal)
-                        <span id="mc-optimal-output" class="fw-bold text-success">--</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                        Monte Carlo (Always Topspin)
-                        <span id="mc-always-ts-output" class="fw-bold text-dark">--</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                        Monte Carlo (Always Float)
-                        <span id="mc-always-fl-output" class="fw-bold text-dark">--</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                        Monte Carlo (Naive Strategy)
-                        <span id="mc-naive-output" class="fw-bold text-dark">--</span>
-                    </li>
-                </ul>
-            </div>
-
-            <div class="card p-4 text-center bg-light border-0">
-                <span class="small text-muted d-block">Historic Validation Match Accuracy</span>
-                <span id="model-accuracy" class="h4 fw-bold text-dark">--</span>
-                <hr class="my-2">
-                <span id="calc-meta-info" class="x-small text-muted d-block" style="font-size: 0.75rem;">Waiting for run...</span>
-            </div>
+        <div id="tab-model-details" class="tab-content">
+            <div class="section-title">How the Math and Predictions Work</div>
+            <p>This system models game progressions step-by-step using <strong>Dynamic Programming with Rally Scoring Rules</strong>.</p>
+            
+            <h3 style="margin-top:15px; margin-bottom:5px;">1. The Core Equation</h3>
+            <p>At any score, the model computes the odds of winning the set by choosing the serve action that yields the highest mathematical probability of success.</p>
+            
+            <div class="section-title">Explicit Boundary & Modeling Simplifications (Academic Disclaimers)</div>
+            <blockquote>
+                <strong>1. First-Order Rally Approximation:</strong><br>
+                Real match play has infinite back-and-forth options (Serve, Pass, Set, Attack, Dig, Block, etc.). For mathematical simplicity, this system condenses the rally into the immediate pass quality and the opponent's average offensive success off that pass. This represents a highly effective first-order projection.
+            </blockquote>
+            <blockquote>
+                <strong>2. Constant Opponent Defense:</strong><br>
+                This model assumes opponent passing and attack rates remain steady. It does not factor in opponent adjustments, fatigue, or rotation changes.
+            </blockquote>
+            <blockquote>
+                <strong>3. Optimization Boundary:</strong><br>
+                The outputs are optimized under these specific model constraints. Real-world coach intuition and player confidence should always supplement these computer recommendations.
+            </blockquote>
         </div>
     </div>
-</div>
 
-<script type="py">
+    <script>
+        const SCHEMA_VERSION = 6;
+        const FIXED_CAP = 27;
+
+        const dom = {
+            p_name: document.getElementById("p_name"), p_ts_n: document.getElementById("p_ts_n"), p_ts_ace: document.getElementById("p_ts_ace"),
+            p_ts_err: document.getElementById("p_ts_err"), p_ts_poor: document.getElementById("p_ts_poor"), p_ts_avg: document.getElementById("p_ts_avg"),
+            p_ts_perf: document.getElementById("p_ts_perf"), p_fl_n: document.getElementById("p_fl_n"), p_fl_ace: document.getElementById("p_fl_ace"),
+            p_fl_err: document.getElementById("p_fl_err"), p_fl_poor: document.getElementById("p_fl_poor"), p_fl_avg: document.getElementById("p_fl_avg"),
+            p_fl_perf: document.getElementById("p_fl_perf"), active_player: document.getElementById("active-player"), roster_view: document.getElementById("roster-view")
+        };
+
+        let defaultRoster = {
+            "Elite Target A": {
+                ts: [150, 22, 38, 45, 30, 15],
+                fl: [220, 11, 11, 33, 99, 66]
+            }
+        };
+
+        function switchTab(evt, id) {
+            document.querySelectorAll('.tab-content').forEach(e => e.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(e => e.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            evt.currentTarget.classList.add('active');
+        }
+        function getRoster() {
+            let d = localStorage.getItem("vb_v3_2_roster");
+            if (d) {
+                try {
+                    let parsed = JSON.parse(d);
+                    if (parsed.version === SCHEMA_VERSION && parsed.players) return parsed.players;
+                } catch(e) {}
+            }
+            return defaultRoster;
+        }
+        function saveRoster(players) {
+            let wrapper = { version: SCHEMA_VERSION, players: players };
+            localStorage.setItem("vb_v3_2_roster", JSON.stringify(wrapper));
+            updateRosterUI();
+        }
+        function getSampleBadge(n) {
+            if (n < 50) return `<span class="badge badge-low">Low Stats (n=${n})</span>`;
+            if (n < 200) return `<span class="badge badge-med">Med Stats (n=${n})</span>`;
+            return `<span class="badge badge-high">High Stats (n=${n})</span>`;
+        }
+        function addPlayer() {
+            let nameInput = dom.p_name.value.trim();
+            if(!nameInput) return alert("Valid profile label required.");
+            let r = getRoster();
+            if (r[nameInput] && !confirm(`Profile "${nameInput}" already exists. Overwrite?`)) return;
+            
+            r[nameInput] = {
+                ts: [parseInt(dom.p_ts_n.value), parseInt(dom.p_ts_ace.value), parseInt(dom.p_ts_err.value), parseInt(dom.p_ts_poor.value), parseInt(dom.p_ts_avg.value), parseInt(dom.p_ts_perf.value)],
+                fl: [parseInt(dom.p_fl_n.value), parseInt(dom.p_fl_ace.value), parseInt(dom.p_fl_err.value), parseInt(dom.p_fl_poor.value), parseInt(dom.p_fl_avg.value), parseInt(dom.p_fl_perf.value)]
+            };
+            saveRoster(r);
+            dom.p_name.value = "";
+        }
+        function deletePlayer(playerName) {
+            let r = getRoster(); delete r[playerName]; saveRoster(r);
+        }
+        function adjustScore(t, v) {
+            let e = document.getElementById("score_" + t);
+            let d = document.getElementById("disp_" + t);
+            let n = Math.max(0, parseInt(e.value) + v);
+            if (n > FIXED_CAP) n = FIXED_CAP;
+            e.value = n; d.textContent = n;
+        }
+        function loadActivePlayerStats() {
+            let s = dom.active_player.value;
+            let p = getRoster()[s];
+            if(p) {
+                dom.p_ts_n.value = p.ts[0]; dom.p_ts_ace.value = p.ts[1]; dom.p_ts_err.value = p.ts[2]; dom.p_ts_poor.value = p.ts[3]; dom.p_ts_avg.value = p.ts[4]; dom.p_ts_perf.value = p.ts[5];
+                dom.p_fl_n.value = p.fl[0]; dom.p_fl_ace.value = p.fl[1]; dom.p_fl_err.value = p.fl[2]; dom.p_fl_poor.value = p.fl[3]; dom.p_fl_avg.value = p.fl[4]; dom.p_fl_perf.value = p.fl[5];
+            }
+            // Clear previous highlights upon change
+            document.querySelectorAll("input").forEach(el => el.classList.remove("input-error"));
+        }
+        function updateRosterUI() {
+            let r = getRoster();
+            dom.active_player.innerHTML = ""; dom.roster_view.innerHTML = "";
+            for(let p in r) {
+                let o = document.createElement("option"); o.value = p; o.textContent = p; dom.active_player.appendChild(o);
+                
+                let item = document.createElement("div"); item.className = "roster-item";
+                let labelSpan = document.createElement("span");
+                labelSpan.innerHTML = `<strong>${p}</strong> | TS Data: ${getSampleBadge(r[p].ts[0])} | FL Data: ${getSampleBadge(r[p].fl[0])}`;
+                
+                let delBtn = document.createElement("button");
+                delBtn.className = "btn-delete"; delBtn.textContent = "X"; delBtn.dataset.player = p;
+                delBtn.onclick = function() { deletePlayer(this.dataset.player); };
+                
+                item.appendChild(labelSpan); item.appendChild(delBtn); dom.roster_view.appendChild(item);
+            }
+            if(dom.active_player.options.length > 0) loadActivePlayerStats();
+        }
+        function exportProfilesJSON() {
+            let payload = { version: SCHEMA_VERSION, players: getRoster() };
+            let dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(payload));
+            let downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr); downloadAnchor.setAttribute("download", `coaches_volleyball_profiles.json`);
+            document.body.appendChild(downloadAnchor); downloadAnchor.click(); downloadAnchor.remove();
+        }
+        function importProfilesJSON(event) {
+            let file = event.target.files[0];
+            if (!file) return;
+            let reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    let parsed = JSON.parse(e.target.result);
+                    if (parsed.version === SCHEMA_VERSION && parsed.players && typeof parsed.players === 'object') {
+                        saveRoster(parsed.players);
+                        alert("Profiles loaded successfully!");
+                    } else { alert("Data compatibility issue."); }
+                } catch(err) { alert("File read error."); }
+            };
+            reader.readAsText(file);
+        }
+        
+        // HELPER TO CLEAR RUNTIME ERRORS
+        function clearInputErrors() {
+            document.querySelectorAll("input").forEach(el => el.classList.remove("input-error"));
+        }
+
+        // TRIGGER VISUAL ERROR ON FIELDS
+        function highlightInputErrors(idsArray) {
+            clearInputErrors();
+            idsArray.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add("input-error");
+            });
+            // Focus on first problematic field and scroll to view
+            if(idsArray.length > 0) {
+                const target = document.getElementById(idsArray[0]);
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    target.focus();
+                }
+            }
+        }
+
+        function handleEngineCallback(payload) {
+            const data = JSON.parse(payload);
+            
+            // Clean interface states since calculation completed
+            clearInputErrors();
+
+            const isTossUp = Math.abs(data.ts_rally - data.fl_rally) < 1e-6;
+            
+            let color = "var(--accent-fl-weak)";
+            let best_str = "FLOAT";
+            if (!isTossUp && data.best_action === 0) {
+                color = "var(--accent-ts-weak)";
+                best_str = "TOPSPIN";
+            } else if (isTossUp) {
+                color = "linear-gradient(135deg, var(--accent-ts-weak) 50%, var(--accent-fl-weak) 50%)";
+                best_str = "TOSS-UP (EQUAL ADVANTAGE)";
+            }
+            
+            let out_html = `
+            <div class='recommendation-banner' style='background: ${color}; color: white;'>
+                <div class='rec-header'>
+                    <span>RECOMMENDED SERVE ACTION: ${best_str}</span>
+                    <span style='font-size:1.1rem; opacity:0.9;'>Current Score: ${data.score_us}–${data.score_them} (${data.server_state === 0 ? 'Our Serve' : 'Opponent Serve'})</span>
+                </div>
+                <div>Based on mathematical modeling, <strong>${best_str}</strong> yields the optimal play expectancy for this exact score.</div>
+            </div>
+            <div class='grid-2' style='margin-top:15px;'>
+                <div>
+                    <h4>Expected Set Win Chance</h4>
+                    <p>Current Predicted Chance to Win Set: <strong style='color:#22c55e; font-size:1.4rem;'>${(data.resolved_equity * 100).toFixed(2)}%</strong></p>
+                    
+                    <h4 style='margin-top:15px;'>Rally Win % Expectations</h4>
+                    <table style='margin-top:5px;'>
+                        <tr><td>Serve Type</td><td>Expected Rally Win Rate</td></tr>
+                        <tr><td>Topspin</td><td>${(data.ts_rally * 100).toFixed(1)}%</td></tr>
+                        <tr><td>Float</td><td>${(data.fl_rally * 100).toFixed(1)}%</td></tr>
+                    </table>
+                </div>
+                <div>
+                    <h4>Skill Sensitivity Analysis (Impact of 1% Improvement)</h4>
+                    <p style='font-size:0.85rem; color:var(--text-muted); margin-bottom:10px;'>This shows how much your chance to win the set improves (+%) if you increase each specific serving outcome by 1%:</p>
+            `;
+            
+            const labels = ["Increase Ace Rate", "Reduce Error Rate", "Force More Poor Passes", "Force More Average Passes", "Force More Perfect Passes"];
+            let max_sens = Math.max(...data.sens_deltas.map(Math.abs), 1.0e-5);
+            
+            data.sens_deltas.forEach((delta, idx) => {
+                let width_pct = Math.min(100, Math.floor((Math.abs(delta) / max_sens) * 100));
+                let sign = delta >= 0 ? "+" : "";
+                let bar_color = delta >= 0 ? "var(--recommend)" : "var(--warn-low)";
+                out_html += `
+                <div style='margin-bottom:6px; font-size:0.85rem;'>
+                    <div style='display:flex; justify-content:space-between; margin-bottom:2px;'>
+                        <span>${labels[idx]}</span><strong>${sign}${(delta * 100).toFixed(3)}%</strong>
+                    </div>
+                    <div class='tornado-bar' style='width:${width_pct}%; background:${bar_color};'></div>
+                </div>
+                `;
+            });
+            
+            out_html += "</div></div>";
+            document.getElementById("output-rec").innerHTML = out_html;
+
+            let val_html = `
+            <h3>1. Scientific System Performance</h3>
+            <table>
+                <thead>
+                    <tr><th>Performance Metric</th><th>Value Output</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Dynamic Programming Win Estimation</td><td><strong>${(data.resolved_equity * 100).toFixed(2)}%</strong> Expected Win Rate</td></tr>
+                    <tr><td>Simulation Verification Result</td><td><strong>${(data.mc_equity * 100).toFixed(2)}%</strong> Expected Win Rate</td></tr>
+                    <tr><td>Simulation Convergence Validation Margin</td><td><span class='badge badge-high'>${(Math.abs(data.resolved_equity - data.mc_equity) * 100).toFixed(2)}% Difference</span></td></tr>
+                    <tr style='background:#1e293b; font-weight:bold;'>
+                        <td>Historical Accuracy Verification Rate (Using 32 Played High School Sets)</td>
+                        <td><span class='badge badge-high' style='font-size:0.85rem;'>${(data.dataset_accuracy * 100).toFixed(1)}% Pred Concordance Accuracy</span></td>
+                    </tr>
+                    <tr><td>Topspin Confidence Interval Limits (95% Certainty Bounds)</td><td>${(data.ts_low * 100).toFixed(1)}% – ${(data.ts_high * 100).toFixed(1)}% expected spread</td></tr>
+                    <tr><td>Float Confidence Interval Limits (95% Certainty Bounds)</td><td>${(data.fl_low * 100).toFixed(1)}% – ${(data.fl_high * 100).toFixed(1)}% expected spread</td></tr>
+                    <tr><td>Calculated Coordinates on Matrix Pathing</td><td>${data.states_allocated} states computed</td></tr>
+                </tbody>
+            </table>
+
+            <h3 style="margin-top: 25px;">2. Play-Strategy Baseline Benchmarks (Set Win Rate comparison over ${data.trials.toLocaleString()} simulated paths)</h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">Pitting this model's recommendations against standard strategies:</p>
+            <table>
+                <thead>
+                    <tr><th>Tested Strategy Pattern</th><th>Set Win Probability</th><th>Improvement Advantage Using Model</th></tr>
+                </thead>
+                <tbody>
+                    <tr style="background: rgba(34, 197, 94, 0.15); font-weight: bold;">
+                        <td>Dynamic Programming Strategy [Calculated Optimal Decisions]</td>
+                        <td>${(data.mc_equity * 100).toFixed(2)}%</td>
+                        <td><span class="badge badge-high">Optimal Target Baseline</span></td>
+                    </tr>
+                    <tr>
+                        <td>Traditional Coaching Heuristic [Topspin when ahead, Float when trailing]</td>
+                        <td>${(data.mc_naive_equity * 100).toFixed(2)}%</td>
+                        <td>+${((data.mc_equity - data.mc_naive_equity) * 100).toFixed(2)}%</td>
+                    </tr>
+                    <tr>
+                        <td>Fixed Serve Strategy: Always Serve Topspin</td>
+                        <td>${(data.mc_always_ts_equity * 100).toFixed(2)}%</td>
+                        <td>+${((data.mc_equity - data.mc_always_ts_equity) * 100).toFixed(2)}%</td>
+                    </tr>
+                    <tr>
+                        <td>Fixed Serve Strategy: Always Serve Float</td>
+                        <td>${(data.mc_always_fl_equity * 100).toFixed(2)}%</td>
+                        <td>+${((data.mc_equity - data.mc_always_fl_equity) * 100).toFixed(2)}%</td>
+                    </tr>
+                </tbody>
+            </table>
+            `;
+            document.getElementById("output-validation-metrics").innerHTML = val_html;
+            
+            renderPolicyHeatmap(data.flat_policy, data.flat_delta_v, data.deuce_cap, data.server_name);
+        }
+
+        function renderPolicyHeatmap(flatPolicyArray, flatDeltaVArray, deuceCap, serverName) {
+            const hContainer = document.getElementById("policy-map-container");
+            const hHeader = document.getElementById("policy-map-header");
+            const grid = document.getElementById("policy-heatmap");
+            
+            grid.innerHTML = "";
+            hContainer.style.display = "block"; 
+            
+            hHeader.style.display = "block";
+            hHeader.innerHTML = `${serverName}'s Optimal Serving Policy Map & Margin of Advantage (Topspin vs. Float)`;
+            
+            grid.style.gridTemplateColumns = `repeat(${deuceCap + 2}, 1fr)`;
+            
+            for (let t = 0; t <= deuceCap + 1; t++) {
+                let cell = document.createElement("div"); cell.className = "heatmap-cell cell-header";
+                if (t > 0) cell.textContent = `Opp: ${t-1}`;
+                grid.appendChild(cell);
+            }
+            
+            let index = 0;
+            for (let u = 0; u <= deuceCap; u++) {
+                let labelCell = document.createElement("div"); labelCell.className = "heatmap-cell cell-header";
+                labelCell.textContent = `Us: ${u}`;
+                grid.appendChild(labelCell);
+                
+                for (let t = 0; t <= deuceCap; t++) {
+                    let action = flatPolicyArray[index];
+                    let deltaV = flatDeltaVArray[index];
+                    index++;
+                    
+                    let cell = document.createElement("div");
+                    const isGameOver = ((u >= 25 || t >= 25) && Math.abs(u - t) >= 2);
+                    
+                    if (isGameOver) {
+                        cell.className = "heatmap-cell cell-game-over";
+                        cell.innerHTML = `<span>—</span>`;
+                    } else {
+                        let displayDelta = Math.abs(deltaV);
+                        
+                        if (Math.abs(deltaV) < 1e-6) {
+                            cell.className = "heatmap-cell cell-toss-up";
+                            cell.innerHTML = `<span>TS/FL</span><span style="font-size:0.45rem; opacity:0.85;">0.0%</span>`;
+                        } else {
+                            if (displayDelta < 0.0005) {
+                                displayDelta = 0.001;
+                            }
+                            
+                            if (action === 0) {
+                                if (deltaV >= 0.02) {
+                                    cell.className = "heatmap-cell cell-ts-strong";
+                                } else {
+                                    cell.className = "heatmap-cell cell-ts-weak";
+                                }
+                                cell.innerHTML = `<span>TS</span><span style="font-size:0.45rem; opacity:0.85;">+${(displayDelta * 100).toFixed(1)}%</span>`;
+                            } else {
+                                if (deltaV <= -0.02) {
+                                    cell.className = "heatmap-cell cell-fl-strong";
+                                } else {
+                                    cell.className = "heatmap-cell cell-fl-weak";
+                                }
+                                cell.innerHTML = `<span>FL</span><span style="font-size:0.45rem; opacity:0.85;">+${(displayDelta * 100).toFixed(1)}%</span>`;
+                            }
+                        }
+                    }
+                    grid.appendChild(cell);
+                }
+            }
+        }
+        function resetEngineState() {
+            localStorage.removeItem("vb_v3_2_roster"); defaultRoster = { "Elite Target A": { ts: [150, 22, 38, 45, 30, 15], fl: [220, 11, 11, 33, 99, 66] } };
+            document.getElementById("score_us").value = 17; document.getElementById("disp_us").textContent = 17;
+            document.getElementById("score_them").value = 17; document.getElementById("disp_them").textContent = 17;
+            updateRosterUI();
+        }
+        window.onload = updateRosterUI;
+    </script>
+
+    <script type="py">
 from pyscript import document
 from typing import List, Tuple, Dict, Any
 import json
@@ -394,21 +779,16 @@ def execute_optimization_sequence(event: Any) -> None:
     loader = document.getElementById("loading-indicator")
     err_box = document.getElementById("validation-error-box")
     
-    btn.disabled = True
-    if loader: loader.style.display = "block"
-    if err_box: err_box.style.display = "none"
+    btn.disabled = True; loader.style.display = "block"; err_box.style.display = "none"
     
     troubled_fields = []
     
+    # 1. Fetch raw elements safely
     try:
         active_select = document.getElementById("active-player")
-        server_name = "Active Server"
+        server_name = active_select.options[active_select.selectedIndex].text if active_select.selectedIndex >= 0 else "Active Server"
         
-        if active_select and active_select.selectedIndex >= 0:
-            opt = active_select.options.item(active_select.selectedIndex)
-            if opt:
-                server_name = opt.text
-        
+        # Pull raw strings
         ts_n_str = document.getElementById("p_ts_n").value
         ts_ace_str = document.getElementById("p_ts_ace").value
         ts_err_str = document.getElementById("p_ts_err").value
@@ -432,13 +812,11 @@ def execute_optimization_sequence(event: Any) -> None:
         score_them_str = document.getElementById("score_them").value
 
     except Exception as e:
-        if err_box:
-            err_box.innerText = f"DOM Reading Error: {str(e)}"
-            err_box.style.display = "block"
-        btn.disabled = False
-        if loader: loader.style.display = "none"
-        return
+        err_box.innerText = f"DOM Reading Error: {str(e)}"
+        err_box.style.display = "block"
+        btn.disabled = False; loader.style.display = "none"; return
 
+    # 2. Check for empty fields first
     inputs_map = {
         "p_ts_n": ts_n_str, "p_ts_ace": ts_ace_str, "p_ts_err": ts_err_str, 
         "p_ts_poor": ts_poor_str, "p_ts_avg": ts_avg_str, "p_ts_perf": ts_perf_str,
@@ -454,13 +832,11 @@ def execute_optimization_sequence(event: Any) -> None:
 
     if troubled_fields:
         js.eval(f"window.highlightInputErrors({json.dumps(troubled_fields)})")
-        if err_box:
-            err_box.innerText = "Error: Please fill in all empty fields highlighted in red."
-            err_box.style.display = "block"
-        btn.disabled = False
-        if loader: loader.style.display = "none"
-        return
+        err_box.innerText = "Error: Please fill in all empty fields highlighted in red."
+        err_box.style.display = "block"
+        btn.disabled = False; loader.style.display = "none"; return
 
+    # 3. Explicit Type Conversions with specific try-blocks
     try:
         ts_n = int(ts_n_str)
         ts_ace_cnt = int(ts_ace_str)
@@ -469,12 +845,9 @@ def execute_optimization_sequence(event: Any) -> None:
         ts_avg_cnt = int(ts_avg_str)
         ts_perf_cnt = int(ts_perf_str)
     except ValueError:
-        if err_box:
-            err_box.innerText = "Type Error: Please check your Topspin values. Only whole numbers allowed."
-            err_box.style.display = "block"
-        btn.disabled = False
-        if loader: loader.style.display = "none"
-        return
+        err_box.innerText = "Type Error: Please check your Topspin values. Only whole numbers allowed."
+        err_box.style.display = "block"
+        btn.disabled = False; loader.style.display = "none"; return
 
     try:
         fl_n = int(fl_n_str)
@@ -484,12 +857,9 @@ def execute_optimization_sequence(event: Any) -> None:
         fl_avg_cnt = int(fl_avg_str)
         fl_perf_cnt = int(fl_perf_str)
     except ValueError:
-        if err_box:
-            err_box.innerText = "Type Error: Please check your Float values. Only whole numbers allowed."
-            err_box.style.display = "block"
-        btn.disabled = False
-        if loader: loader.style.display = "none"
-        return
+        err_box.innerText = "Type Error: Please check your Float values. Only whole numbers allowed."
+        err_box.style.display = "block"
+        btn.disabled = False; loader.style.display = "none"; return
 
     try:
         k_poor = float(opp_poor_str) / 100.0
@@ -497,12 +867,9 @@ def execute_optimization_sequence(event: Any) -> None:
         k_perf = float(opp_perf_str) / 100.0
         our_so = float(our_so_str) / 100.0
     except ValueError:
-        if err_box:
-            err_box.innerText = "Type Error: Opponent or team statistics must be clean numeric decimals or percentages."
-            err_box.style.display = "block"
-        btn.disabled = False
-        if loader: loader.style.display = "none"
-        return
+        err_box.innerText = "Type Error: Opponent or team statistics must be clean numeric decimals or percentages."
+        err_box.style.display = "block"
+        btn.disabled = False; loader.style.display = "none"; return
 
     try:
         score_us = int(score_us_str)
@@ -510,39 +877,33 @@ def execute_optimization_sequence(event: Any) -> None:
     except ValueError:
         score_us, score_them = 17, 17
 
+    # 4. Logical boundaries validation
     if ts_n <= 0: troubled_fields.append("p_ts_n")
     if fl_n <= 0: troubled_fields.append("p_fl_n")
     if troubled_fields:
         js.eval(f"window.highlightInputErrors({json.dumps(troubled_fields)})")
-        if err_box:
-            err_box.innerText = "Error: Total Serves logged must be greater than zero."
-            err_box.style.display = "block"
-        btn.disabled = False
-        if loader: loader.style.display = "none"
-        return
+        err_box.innerText = "Error: Total Serves logged must be greater than zero."
+        err_box.style.display = "block"
+        btn.disabled = False; loader.style.display = "none"; return
 
+    # 5. Exact sums validation
     ts_total_counted = ts_ace_cnt + ts_err_cnt + ts_poor_cnt + ts_avg_cnt + ts_perf_cnt
     if ts_total_counted != ts_n:
         troubled_fields.extend(["p_ts_n", "p_ts_ace", "p_ts_err", "p_ts_poor", "p_ts_avg", "p_ts_perf"])
         js.eval(f"window.highlightInputErrors({json.dumps(troubled_fields)})")
-        if err_box:
-            err_box.innerHTML = f"Error: Topspin category counts add up to <strong>{ts_total_counted}</strong>, but your Total Serves input is <strong>{ts_n}</strong>."
-            err_box.style.display = "block"
-        btn.disabled = False
-        if loader: loader.style.display = "none"
-        return
+        err_box.innerHTML = f"Error: Topspin category counts add up to <strong>{ts_total_counted}</strong>, but your Total Serves input is <strong>{ts_n}</strong>."
+        err_box.style.display = "block"
+        btn.disabled = False; loader.style.display = "none"; return
 
     fl_total_counted = fl_ace_cnt + fl_err_cnt + fl_poor_cnt + fl_avg_cnt + fl_perf_cnt
     if fl_total_counted != fl_n:
         troubled_fields.extend(["p_fl_n", "p_fl_ace", "p_fl_err", "p_fl_poor", "p_fl_avg", "p_fl_perf"])
         js.eval(f"window.highlightInputErrors({json.dumps(troubled_fields)})")
-        if err_box:
-            err_box.innerHTML = f"Error: Float category counts add up to <strong>{fl_total_counted}</strong>, but your Total Serves input is <strong>{fl_n}</strong>."
-            err_box.style.display = "block"
-        btn.disabled = False
-        if loader: loader.style.display = "none"
-        return
+        err_box.innerHTML = f"Error: Float category counts add up to <strong>{fl_total_counted}</strong>, but your Total Serves input is <strong>{fl_n}</strong>."
+        err_box.style.display = "block"
+        btn.disabled = False; loader.style.display = "none"; return
 
+    # 6. Execute Calculations
     deuce_cap: int = FIXED_CAP
     if score_us > deuce_cap or score_them > deuce_cap:
         deuce_cap = max(score_us + WIN_MARGIN, score_them + WIN_MARGIN)
@@ -550,8 +911,7 @@ def execute_optimization_sequence(event: Any) -> None:
     ts_v: List[float] = [ts_ace_cnt/ts_n, ts_err_cnt/ts_n, ts_poor_cnt/ts_n, ts_avg_cnt/ts_n, ts_perf_cnt/ts_n]
     fl_v: List[float] = [fl_ace_cnt/fl_n, fl_err_cnt/fl_n, fl_poor_cnt/fl_n, fl_avg_cnt/fl_n, fl_perf_cnt/fl_n]
 
-    # Always assume our team is serving
-    server_state: int = MAP_STATE["OUR_SERVE"]
+    server_state: int = MAP_STATE["OUR_SERVE"] if document.getElementById("current_poss").value == "us" else MAP_STATE["THEIR_SERVE"]
 
     model = ProportionalInductionEngine(k_perf, k_avg, k_poor, our_so, deuce_cap)
     ts_rally: float = model.compute_rally_metrics(ts_v)
@@ -681,110 +1041,7 @@ def execute_optimization_sequence(event: Any) -> None:
     }
     
     js.eval(f"window.handleEngineCallback('{json.dumps(payload)}')")
-    btn.disabled = False
-    if loader: loader.style.display = "none"
+    btn.disabled = False; loader.style.display = "none"
 </script>
-
-<script>
-    // 1. Highlight fields with validation errors
-    window.highlightInputErrors = function(fieldIds) {
-        document.querySelectorAll('input').forEach(input => {
-            input.classList.remove('is-invalid');
-            input.style.borderColor = '';
-        });
-        
-        const ids = JSON.parse(fieldIds);
-        ids.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) {
-                el.classList.add('is-invalid');
-                el.style.borderColor = '#dc3545';
-            }
-        });
-    };
-
-    // 2. Process and display the calculation results
-    window.handleEngineCallback = function(payloadJson) {
-        try {
-            const data = JSON.parse(payloadJson);
-            
-            // Clear any old validation highlights
-            document.querySelectorAll('input').forEach(input => {
-                input.classList.remove('is-invalid');
-                input.style.borderColor = '';
-            });
-
-            // Update Best Action Display
-            const bestActionEl = document.getElementById("optimal-action-output");
-            if (bestActionEl) {
-                if (data.best_action === 0) {
-                    bestActionEl.innerHTML = `<span style="color: #28a745; font-weight: bold;">TOPSPIN</span>`;
-                } else {
-                    bestActionEl.innerHTML = `<span style="color: #007bff; font-weight: bold;">FLOAT</span>`;
-                }
-            }
-
-            // Update Win Probability (Resolved Equity)
-            const winProbEl = document.getElementById("win-probability-output");
-            if (winProbEl) {
-                winProbEl.innerText = (data.resolved_equity * 100).toFixed(1) + "%";
-            }
-
-            // Update Rally Win Rates
-            const tsRallyEl = document.getElementById("ts-rally-output");
-            if (tsRallyEl) tsRallyEl.innerText = (data.ts_rally * 100).toFixed(1) + "%";
-
-            const flRallyEl = document.getElementById("fl-rally-output");
-            if (flRallyEl) flRallyEl.innerText = (data.fl_rally * 100).toFixed(1) + "%";
-
-            // Update Monte Carlo Sim Results
-            const mcOptimalEl = document.getElementById("mc-optimal-output");
-            if (mcOptimalEl) mcOptimalEl.innerText = (data.mc_equity * 100).toFixed(1) + "%";
-
-            const mcTsEl = document.getElementById("mc-always-ts-output");
-            if (mcTsEl) mcTsEl.innerText = (data.mc_always_ts_equity * 100).toFixed(1) + "%";
-
-            const mcFlEl = document.getElementById("mc-always-fl-output");
-            if (mcFlEl) mcFlEl.innerText = (data.mc_always_fl_equity * 100).toFixed(1) + "%";
-
-            const mcNaiveEl = document.getElementById("mc-naive-output");
-            if (mcNaiveEl) mcNaiveEl.innerText = (data.mc_naive_equity * 100).toFixed(1) + "%";
-
-            // Update Confidence Intervals
-            const tsCiEl = document.getElementById("ts-confidence-interval");
-            if (tsCiEl) {
-                tsCiEl.innerText = `(${ (data.ts_low * 100).toFixed(1) }% - ${ (data.ts_high * 100).toFixed(1) }%)`;
-            }
-
-            const flCiEl = document.getElementById("fl-confidence-interval");
-            if (flCiEl) {
-                flCiEl.innerText = `(${ (data.fl_low * 100).toFixed(1) }% - ${ (data.fl_high * 100).toFixed(1) }%)`;
-            }
-
-            // Update Model Metadata
-            const accuracyEl = document.getElementById("model-accuracy");
-            if (accuracyEl) accuracyEl.innerText = (data.dataset_accuracy * 100).toFixed(1) + "%";
-
-            const metaEl = document.getElementById("calc-meta-info");
-            if (metaEl) {
-                metaEl.innerText = `Computed ${data.states_allocated} states in ${data.t_dp.toFixed(1)}ms. Monte Carlo run over ${data.trials.toLocaleString()} trials.`;
-            }
-
-            // Draw heatmap grid if existing
-            if (typeof window.renderPolicyGrid === "function") {
-                window.renderPolicyGrid(data.flat_policy, data.flat_delta_v, data.deuce_cap);
-            }
-
-        } catch (e) {
-            console.error("Error processing engine callback payload:", e);
-            const errBox = document.getElementById("validation-error-box");
-            if (errBox) {
-                errBox.innerText = "Error displaying results: " + e.message;
-                errBox.style.display = "block";
-            }
-        }
-    };
-</script>
-
 </body>
 </html>
