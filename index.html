@@ -786,7 +786,13 @@ def execute_optimization_sequence(event: Any) -> None:
     # 1. Fetch raw elements safely
     try:
         active_select = document.getElementById("active-player")
-        server_name = active_select.options[active_select.selectedIndex].text if active_select.selectedIndex >= 0 else "Active Server"
+        server_name = "Active Server"
+        
+        # Safely resolve select text using web methods instead of subscripts
+        if active_select and active_select.selectedIndex >= 0:
+            opt = active_select.options.item(active_select.selectedIndex)
+            if opt:
+                server_name = opt.text
         
         # Pull raw strings
         ts_n_str = document.getElementById("p_ts_n").value
