@@ -1049,3 +1049,108 @@ def execute_optimization_sequence(event: Any) -> None:
     js.eval(f"window.handleEngineCallback('{json.dumps(payload)}')")
     btn.disabled = False; loader.style.display = "none"
 </script>
+    <script>
+    // 1. Highlight fields with validation errors
+    window.highlightInputErrors = function(fieldIds) {
+        // Clear any previous highlights
+        document.querySelectorAll('input').forEach(input => {
+            input.classList.remove('is-invalid');
+            input.style.borderColor = '';
+        });
+        
+        // Apply red border to troubled fields
+        const ids = JSON.parse(fieldIds);
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.add('is-invalid');
+                el.style.borderColor = '#dc3545';
+            }
+        });
+    };
+
+    // 2. Process and display the calculation results
+    window.handleEngineCallback = function(payloadJson) {
+        try {
+            const data = JSON.parse(payloadJson);
+            
+            // Clear any old validation highlights
+            document.querySelectorAll('input').forEach(input => {
+                input.classList.remove('is-invalid');
+                input.style.borderColor = '';
+            });
+
+            // Update Best Action Display
+            const bestActionEl = document.getElementById("optimal-action-output");
+            if (bestActionEl) {
+                if (data.best_action === 0) {
+                    bestActionEl.innerHTML = `<span style="color: #28a745; font-weight: bold;">TOPSPIN</span>`;
+                } else {
+                    bestActionEl.innerHTML = `<span style="color: #007bff; font-weight: bold;">FLOAT</span>`;
+                }
+            }
+
+            // Update Win Probability (Resolved Equity)
+            const winProbEl = document.getElementById("win-probability-output");
+            if (winProbEl) {
+                winProbEl.innerText = (data.resolved_equity * 100).toFixed(1) + "%";
+            }
+
+            // Update Rally Win Rates
+            const tsRallyEl = document.getElementById("ts-rally-output");
+            if (tsRallyEl) tsRallyEl.innerText = (data.ts_rally * 100).toFixed(1) + "%";
+
+            const flRallyEl = document.getElementById("fl-rally-output");
+            if (flRallyEl) flRallyEl.innerText = (data.fl_rally * 100).toFixed(1) + "%";
+
+            // Update Monte Carlo Sim Results
+            const mcOptimalEl = document.getElementById("mc-optimal-output");
+            if (mcOptimalEl) mcOptimalEl.innerText = (data.mc_equity * 100).toFixed(1) + "%";
+
+            const mcTsEl = document.getElementById("mc-always-ts-output");
+            if (mcTsEl) mcTsEl.innerText = (data.mc_always_ts_equity * 100).toFixed(1) + "%";
+
+            const mcFlEl = document.getElementById("mc-always-fl-output");
+            if (mcFlEl) mcFlEl.innerText = (data.mc_always_fl_equity * 100).toFixed(1) + "%";
+
+            const mcNaiveEl = document.getElementById("mc-naive-output");
+            if (mcNaiveEl) mcNaiveEl.innerText = (data.mc_naive_equity * 100).toFixed(1) + "%";
+
+            // Update Confidence Intervals
+            const tsCiEl = document.getElementById("ts-confidence-interval");
+            if (tsCiEl) {
+                tsCiEl.innerText = `(${ (data.ts_low * 100).toFixed(1) }% - ${ (data.ts_high * 100).toFixed(1) }%)`;
+            }
+
+            const flCiEl = document.getElementById("fl-confidence-interval");
+            if (flCiEl) {
+                flCiEl.innerText = `(${ (data.fl_low * 100).toFixed(1) }% - ${ (data.fl_high * 100).toFixed(1) }%)`;
+            }
+
+            // Update Model Metadata
+            const accuracyEl = document.getElementById("model-accuracy");
+            if (accuracyEl) accuracyEl.innerText = (data.dataset_accuracy * 100).toFixed(1) + "%";
+
+            const metaEl = document.getElementById("calc-meta-info");
+            if (metaEl) {
+                metaEl.innerText = `Computed ${data.states_allocated} states in ${data.t_dp.toFixed(1)}ms. Monte Carlo run over ${data.trials.toLocaleString()} trials.`;
+            }
+
+            // If you have custom UI drawing functions (like rendering a heatmap grid), trigger them here:
+            if (typeof window.renderPolicyGrid === "function") {
+                window.renderPolicyGrid(data.flat_policy, data.flat_delta_v, data.deuce_cap);
+            }
+
+        } catch (e) {
+            console.error("Error processing engine callback payload:", e);
+            const errBox = document.getElementById("validation-error-box");
+            if (errBox) {
+                errBox.innerText = "Error displaying results: " + e.message;
+                errBox.style.display = "block";
+            }
+        }
+    };
+</script>
+
+</body>
+</html>
