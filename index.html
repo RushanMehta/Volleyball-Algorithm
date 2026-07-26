@@ -192,10 +192,19 @@
                         <div class="input-group"><label>Opponent Attack Win % on a PERFECT pass</label><input type="number" id="opp_kill_perfect" value="64" min="0" max="100"></div>
                         <div class="input-group"><label>Our Side-Out Probability (Win receive point) %</label><input type="number" id="our_sideout_rate" value="65" min="0" max="100"></div>
                     </div>
+
+                    <div class="section-title">3. Pressure / Clutch Sensitivity <span style="font-weight:normal; color:var(--text-muted); font-size:0.75rem;">(optional)</span></div>
+                    <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:8px;">
+                        Real serve execution can get shakier as leverage rises (tied scores, deuce, set/match point). Set how much each serve's error rate should climb at maximum pressure — 0% means that serve is treated as pressure-proof.
+                    </p>
+                    <div class="grid-2">
+                        <div class="input-group"><label>Topspin Error-Rate Increase at Max Pressure (%)</label><input type="number" id="press_amp_ts" value="15" min="0" max="100"></div>
+                        <div class="input-group"><label>Float Error-Rate Increase at Max Pressure (%)</label><input type="number" id="press_amp_fl" value="0" min="0" max="100"></div>
+                    </div>
                 </div>
 
                 <div class="column">
-                    <div class="section-title">3. Current Match Context & Score</div>
+                    <div class="section-title">4. Current Match Context & Score</div>
                     <div class="grid-2">
                         <div class="input-group">
                             <label>Active Server Profile</label>
@@ -456,12 +465,15 @@
                 <div>
                     <h4>Expected Set Win Chance</h4>
                     <p>Current Predicted Chance to Win Set: <strong style='color:#22c55e; font-size:1.4rem;'>${(data.resolved_equity * 100).toFixed(2)}%</strong></p>
+
+                    <h4 style='margin-top:15px;'>Leverage / Pressure at This Score</h4>
+                    <p style='font-size:0.85rem; color:var(--text-muted);'>${(data.pressure_at_score * 100).toFixed(0)}% of max pressure — rises near set/match point and when the score is tight. This is what shifts the error rates below away from your season averages.</p>
                     
-                    <h4 style='margin-top:15px;'>Rally Win % Expectations</h4>
+                    <h4 style='margin-top:15px;'>Rally Win % Expectations (adjusted for pressure at this score)</h4>
                     <table style='margin-top:5px;'>
-                        <tr><td>Serve Type</td><td>Expected Rally Win Rate</td></tr>
-                        <tr><td>Topspin</td><td>${(data.ts_rally * 100).toFixed(1)}%</td></tr>
-                        <tr><td>Float</td><td>${(data.fl_rally * 100).toFixed(1)}%</td></tr>
+                        <tr><td>Serve Type</td><td>At This Score</td><td>Season Average (no pressure)</td></tr>
+                        <tr><td>Topspin</td><td>${(data.ts_rally * 100).toFixed(1)}%</td><td>${(data.ts_rally_base * 100).toFixed(1)}%</td></tr>
+                        <tr><td>Float</td><td>${(data.fl_rally * 100).toFixed(1)}%</td><td>${(data.fl_rally_base * 100).toFixed(1)}%</td></tr>
                     </table>
                 </div>
                 <div>
@@ -638,6 +650,11 @@ WIN_MARGIN: int = 2
 FIXED_CAP: int = 27
 RANDOM_SEED: int = 42
 
+# How many points away from set/match point "endgame proximity" starts ramping up to 1.0
+PRESSURE_ENDGAME_WINDOW: int = 6
+# How close the score margin needs to be for "tightness" to ramp from 0 up to 1.0
+PRESSURE_MARGIN_WINDOW: int = 6
+
 class ProportionalInductionEngine:
     def __init__(self, kill_perfect: float, kill_average: float, kill_poor: float, our_sideout: float, max_cap: int = FIXED_CAP) -> None:
         self.k_perf: float = kill_perfect
@@ -654,11 +671,40 @@ class ProportionalInductionEngine:
         p_ace, p_err, p_poor, p_avg, p_perf = vector
         return p_ace + (p_poor * (1.0 - self.k_poor)) + (p_avg * (1.0 - self.k_avg)) + (p_perf * (1.0 - self.k_perf))
 
-    def solve_optimal_policy_map(self, p_win_ts: float, p_win_fl: float) -> Tuple[List[List[List[float]]], List[List[List[int]]], List[List[List[float]]]]:
+    def get_pressure(self, u: int, t: int) -> float:
+        """Leverage index in [0,1]: rises near set/match point AND when the score is tight."""
+        endgame_proximity = max(u, t) - (SET_POINTS - PRESSURE_ENDGAME_WINDOW)
+        endgame_proximity = max(0.0, min(1.0, endgame_proximity / PRESSURE_ENDGAME_WINDOW))
+        margin_tightness = 1.0 - max(0.0, min(1.0, abs(u - t) / PRESSURE_MARGIN_WINDOW))
+        pressure = (0.5 * endgame_proximity) + (0.5 * margin_tightness)
+        return max(0.0, min(1.0, pressure))
+
+    def apply_pressure(self, base_v: List[float], pressure: float, amp_frac: float) -> List[float]:
+        """Shift additional probability mass into the error slot as pressure rises, renormalizing the rest."""
+        if amp_frac <= 0.0 or pressure <= 0.0:
+            return base_v
+        v = list(base_v)
+        err_idx = 1
+        added = amp_frac * pressure
+        new_err = min(1.0, v[err_idx] + added)
+        actually_added = new_err - v[err_idx]
+        old_remaining = 1.0 - v[err_idx]
+        new_remaining = 1.0 - new_err
+        v[err_idx] = new_err
+        if old_remaining > 1e-9:
+            scale = new_remaining / old_remaining
+            for i in range(len(v)):
+                if i != err_idx:
+                    v[i] *= scale
+        return v
+
+    def solve_optimal_policy_map(self, ts_v: List[float], fl_v: List[float], ts_amp: float, fl_amp: float) -> Tuple[List[List[List[float]]], List[List[List[int]]], List[List[List[float]]], List[List[float]], List[List[float]]]:
         dim: int = self.max_cap + 2
         v_grid: List[List[List[float]]] = [[[0.0] * 2 for _ in range(dim)] for _ in range(dim)]
         policy_grid: List[List[List[int]]] = [[[0] * 2 for _ in range(dim)] for _ in range(dim)]
         delta_v_grid: List[List[List[float]]] = [[[0.0] * 2 for _ in range(dim)] for _ in range(dim)]
+        ts_rally_grid: List[List[float]] = [[0.0] * dim for _ in range(dim)]
+        fl_rally_grid: List[List[float]] = [[0.0] * dim for _ in range(dim)]
         self.states_allocated = 0
 
         for u in range(dim):
@@ -689,6 +735,12 @@ class ProportionalInductionEngine:
                 u_next = min(u + 1, dim - 1)
                 t_next = min(t + 1, dim - 1)
 
+                pressure = self.get_pressure(u, t)
+                p_win_ts = self.compute_rally_metrics(self.apply_pressure(ts_v, pressure, ts_amp))
+                p_win_fl = self.compute_rally_metrics(self.apply_pressure(fl_v, pressure, fl_amp))
+                ts_rally_grid[u][t] = p_win_ts
+                fl_rally_grid[u][t] = p_win_fl
+
                 opp_serve_equity = (self.our_sideout * v_grid[u_next][t][MAP_STATE["OUR_SERVE"]]) + ((1.0 - self.our_sideout) * v_grid[u][t_next][MAP_STATE["THEIR_SERVE"]])
                 v_grid[u][t][MAP_STATE["THEIR_SERVE"]] = self.clamp_probability(opp_serve_equity)
 
@@ -708,11 +760,11 @@ class ProportionalInductionEngine:
                     v_grid[u][t][MAP_STATE["OUR_SERVE"]] = self.clamp_probability(equity_fl)
                     policy_grid[u][t][MAP_STATE["OUR_SERVE"]] = MAP_ACTION["FLOAT"]
 
-        v_grid = self._normalize_symmetrical_equity(v_grid, p_win_ts, p_win_fl)
+        v_grid = self._normalize_symmetrical_equity(v_grid, ts_rally_grid, fl_rally_grid)
 
-        return v_grid, policy_grid, delta_v_grid
+        return v_grid, policy_grid, delta_v_grid, ts_rally_grid, fl_rally_grid
 
-    def _normalize_symmetrical_equity(self, v_grid: List[List[List[float]]], p_win_ts: float, p_win_fl: float) -> List[List[List[float]]]:
+    def _normalize_symmetrical_equity(self, v_grid: List[List[List[float]]], ts_rally_grid: List[List[float]], fl_rally_grid: List[List[float]]) -> List[List[List[float]]]:
         dim = self.max_cap + 2
         for u in range(dim):
             for t in range(dim):
@@ -720,7 +772,7 @@ class ProportionalInductionEngine:
                     for s in [0, 1]:
                         val = v_grid[u][t][s]
                         if s == MAP_STATE["OUR_SERVE"]:
-                            p_active = max(p_win_ts, p_win_fl)
+                            p_active = max(ts_rally_grid[u][t], fl_rally_grid[u][t])
                         else:
                             p_active = self.our_sideout
                         
@@ -741,7 +793,7 @@ class ProportionalInductionEngine:
         high = min(0.999, (center + spread)/denom)
         return low, high
 
-    def run_policy_simulation(self, start_us: int, start_them: int, start_serving: int, p_win_ts: float, p_win_fl: float, policy_grid: List[List[List[int]]], trials: int, force_heuristic: str = "optimal") -> float:
+    def run_policy_simulation(self, start_us: int, start_them: int, start_serving: int, ts_v: List[float], fl_v: List[float], ts_amp: float, fl_amp: float, policy_grid: List[List[List[int]]], trials: int, force_heuristic: str = "optimal") -> float:
         random.seed(RANDOM_SEED)
         wins: int = 0
         for _ in range(trials):
@@ -765,8 +817,12 @@ class ProportionalInductionEngine:
                         action = MAP_ACTION["TOPSPIN"] if u >= t else MAP_ACTION["FLOAT"]
                     else:
                         action = policy_grid[u][t][MAP_STATE["OUR_SERVE"]]
-                        
-                    p_win: float = p_win_ts if action == MAP_ACTION["TOPSPIN"] else p_win_fl
+
+                    pressure = self.get_pressure(u, t)
+                    if action == MAP_ACTION["TOPSPIN"]:
+                        p_win: float = self.compute_rally_metrics(self.apply_pressure(ts_v, pressure, ts_amp))
+                    else:
+                        p_win = self.compute_rally_metrics(self.apply_pressure(fl_v, pressure, fl_amp))
                     if roll < p_win: u += 1
                     else: t += 1; server = MAP_STATE["THEIR_SERVE"]
                 else:
@@ -813,6 +869,9 @@ def execute_optimization_sequence(event: Any) -> None:
         opp_avg_str = document.getElementById("opp_kill_average").value
         opp_perf_str = document.getElementById("opp_kill_perfect").value
         our_so_str = document.getElementById("our_sideout_rate").value
+
+        press_amp_ts_str = document.getElementById("press_amp_ts").value
+        press_amp_fl_str = document.getElementById("press_amp_fl").value
         
         score_us_str = document.getElementById("score_us").value
         score_them_str = document.getElementById("score_them").value
@@ -829,7 +888,8 @@ def execute_optimization_sequence(event: Any) -> None:
         "p_fl_n": fl_n_str, "p_fl_ace": fl_ace_str, "p_fl_err": fl_err_str,
         "p_fl_poor": fl_poor_str, "p_fl_avg": fl_avg_str, "p_fl_perf": fl_perf_str,
         "opp_kill_poor": opp_poor_str, "opp_kill_average": opp_avg_str, 
-        "opp_kill_perfect": opp_perf_str, "our_sideout_rate": our_so_str
+        "opp_kill_perfect": opp_perf_str, "our_sideout_rate": our_so_str,
+        "press_amp_ts": press_amp_ts_str, "press_amp_fl": press_amp_fl_str
     }
     
     for key, val in inputs_map.items():
@@ -878,6 +938,14 @@ def execute_optimization_sequence(event: Any) -> None:
         btn.disabled = False; loader.style.display = "none"; return
 
     try:
+        press_amp_ts = max(0.0, float(press_amp_ts_str)) / 100.0
+        press_amp_fl = max(0.0, float(press_amp_fl_str)) / 100.0
+    except ValueError:
+        err_box.innerText = "Type Error: Pressure sensitivity values must be clean numeric percentages."
+        err_box.style.display = "block"
+        btn.disabled = False; loader.style.display = "none"; return
+
+    try:
         score_us = int(score_us_str)
         score_them = int(score_them_str)
     except ValueError:
@@ -920,13 +988,18 @@ def execute_optimization_sequence(event: Any) -> None:
     server_state: int = MAP_STATE["OUR_SERVE"] if document.getElementById("current_poss").value == "us" else MAP_STATE["THEIR_SERVE"]
 
     model = ProportionalInductionEngine(k_perf, k_avg, k_poor, our_so, deuce_cap)
-    ts_rally: float = model.compute_rally_metrics(ts_v)
-    fl_rally: float = model.compute_rally_metrics(fl_v)
+    ts_rally_base: float = model.compute_rally_metrics(ts_v)
+    fl_rally_base: float = model.compute_rally_metrics(fl_v)
     
     t0: float = time.time()
-    v_grid, policy_grid, delta_v_grid = model.solve_optimal_policy_map(ts_rally, fl_rally)
+    v_grid, policy_grid, delta_v_grid, ts_rally_grid, fl_rally_grid = model.solve_optimal_policy_map(ts_v, fl_v, press_amp_ts, press_amp_fl)
     resolved_equity: float = model.clamp_probability(v_grid[score_us][score_them][server_state])
     t_dp: float = (time.time() - t0) * 1000.0
+
+    # Pressure-adjusted point-win rates and leverage index at the score currently on the board
+    pressure_at_score: float = model.get_pressure(score_us, score_them)
+    ts_rally: float = ts_rally_grid[score_us][score_them]
+    fl_rally: float = fl_rally_grid[score_us][score_them]
 
     h: float = 0.01
     sens_deltas: List[float] = []
@@ -951,11 +1024,10 @@ def execute_optimization_sequence(event: Any) -> None:
             for i in range(len(v_mod)):
                 if i != target_idx: v_mod[i] = max(0.0, v_mod[i] - step)
 
-        r_active = model.compute_rally_metrics(v_mod)
         if recommended_action == MAP_ACTION["TOPSPIN"]:
-            g, _, _ = model.solve_optimal_policy_map(r_active, fl_rally)
+            g, _, _, _, _ = model.solve_optimal_policy_map(v_mod, fl_v, press_amp_ts, press_amp_fl)
         else:
-            g, _, _ = model.solve_optimal_policy_map(ts_rally, r_active)
+            g, _, _, _, _ = model.solve_optimal_policy_map(ts_v, v_mod, press_amp_ts, press_amp_fl)
         return model.clamp_probability(g[score_us][score_them][server_state])
 
     for target in range(5):
@@ -968,10 +1040,10 @@ def execute_optimization_sequence(event: Any) -> None:
     fl_low, fl_high = model.compute_wilson_score_bounds_from_counts(fl_expected_wins, fl_n)
 
     high_precision_trials: int = 10000
-    mc_equity: float = model.run_policy_simulation(score_us, score_them, server_state, ts_rally, fl_rally, policy_grid, high_precision_trials, "optimal")
-    mc_always_ts_equity: float = model.run_policy_simulation(score_us, score_them, server_state, ts_rally, fl_rally, policy_grid, high_precision_trials, "always_ts")
-    mc_always_fl_equity: float = model.run_policy_simulation(score_us, score_them, server_state, ts_rally, fl_rally, policy_grid, high_precision_trials, "always_fl")
-    mc_naive_equity: float = model.run_policy_simulation(score_us, score_them, server_state, ts_rally, fl_rally, policy_grid, high_precision_trials, "naive")
+    mc_equity: float = model.run_policy_simulation(score_us, score_them, server_state, ts_v, fl_v, press_amp_ts, press_amp_fl, policy_grid, high_precision_trials, "optimal")
+    mc_always_ts_equity: float = model.run_policy_simulation(score_us, score_them, server_state, ts_v, fl_v, press_amp_ts, press_amp_fl, policy_grid, high_precision_trials, "always_ts")
+    mc_always_fl_equity: float = model.run_policy_simulation(score_us, score_them, server_state, ts_v, fl_v, press_amp_ts, press_amp_fl, policy_grid, high_precision_trials, "always_fl")
+    mc_naive_equity: float = model.run_policy_simulation(score_us, score_them, server_state, ts_v, fl_v, press_amp_ts, press_amp_fl, policy_grid, high_precision_trials, "naive")
 
     validation_historical_dataset: List[Dict[str, Any]] = [
         {"us": 12, "them": 14, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "us"},
@@ -1035,6 +1107,11 @@ def execute_optimization_sequence(event: Any) -> None:
         "resolved_equity": float(resolved_equity), 
         "ts_rally": float(ts_rally), 
         "fl_rally": float(fl_rally),
+        "ts_rally_base": float(ts_rally_base),
+        "fl_rally_base": float(fl_rally_base),
+        "pressure_at_score": float(pressure_at_score),
+        "press_amp_ts": float(press_amp_ts),
+        "press_amp_fl": float(press_amp_fl),
         "sens_deltas": [float(x) for x in sens_deltas], 
         "sens_serve_label": sens_serve_label,
         "mc_equity": float(mc_equity), 
