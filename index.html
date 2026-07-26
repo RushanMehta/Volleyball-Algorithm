@@ -498,8 +498,7 @@
                 <tbody>
                     <tr><td>Dynamic Programming Win Estimation</td><td><strong>${(data.resolved_equity * 100).toFixed(2)}%</strong> Expected Win Rate</td></tr>
                     <tr><td>Simulation Verification Result</td><td><strong>${(data.mc_equity * 100).toFixed(2)}%</strong> Expected Win Rate</td></tr>
-                    <tr><td>Simulation Convergence Validation Margin</td><td><span class='badge badge-high'>${(Math.abs(data.resolved_equity - data.mc_equity) * 100).toFixed(2)}% Difference</span></td></tr>
-                    <tr style='background:#1e293b; font-weight:bold;'>
+                    <tr><td>Simulation Convergence Validation Margin</td><td><span class='badge badge-high'>${(Math.abs(data.resolved_equity - data.mc_equity) * 100).toFixed(2)}% Difference</span></td></tr><tr style='background:#1e293b; font-weight:bold;'>
                         <td>Historical Accuracy Verification Rate (Using 32 Played High School Sets)</td>
                         <td><span class='badge badge-high' style='font-size:0.85rem;'>${(data.dataset_accuracy * 100).toFixed(1)}% Pred Concordance Accuracy</span></td>
                     </tr>
@@ -1051,3 +1050,4 @@ def execute_optimization_sequence(event: Any) -> None:
 </script>
 </body>
 </html>
+               
