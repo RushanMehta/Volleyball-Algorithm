@@ -465,8 +465,8 @@
                     </table>
                 </div>
                 <div>
-                    <h4>Skill Sensitivity Analysis (Impact of 1% Improvement)</h4>
-                    <p style='font-size:0.85rem; color:var(--text-muted); margin-bottom:10px;'>This shows how much your chance to win the set improves (+%) if you increase each specific serving outcome by 1%:</p>
+                    <h4>Skill Sensitivity Analysis — ${data.sens_serve_label} Serve (Impact of 1% Improvement)</h4>
+                    <p style='font-size:0.85rem; color:var(--text-muted); margin-bottom:10px;'>This shows how much your chance to win the set improves (+%) if you increase each specific ${data.sens_serve_label.toLowerCase()} serving outcome by 1% (renormalized against the other outcomes for that serve type). Shown for the serve currently recommended at this score:</p>
             `;
             
             const labels = ["Increase Ace Rate", "Reduce Error Rate", "Force More Poor Passes", "Force More Average Passes", "Force More Perfect Passes"];
@@ -931,6 +931,10 @@ def execute_optimization_sequence(event: Any) -> None:
     h: float = 0.01
     sens_deltas: List[float] = []
 
+    recommended_action: int = policy_grid[score_us][score_them][MAP_STATE["OUR_SERVE"]]
+    active_v: List[float] = ts_v if recommended_action == MAP_ACTION["TOPSPIN"] else fl_v
+    sens_serve_label: str = "Topspin" if recommended_action == MAP_ACTION["TOPSPIN"] else "Float"
+
     def evaluate_renormalized_perturbation(base_v: List[float], target_idx: int) -> float:
         v_mod = list(base_v)
         if v_mod[target_idx] + h > 1.0: return resolved_equity
@@ -947,12 +951,15 @@ def execute_optimization_sequence(event: Any) -> None:
             for i in range(len(v_mod)):
                 if i != target_idx: v_mod[i] = max(0.0, v_mod[i] - step)
 
-        r_ts = model.compute_rally_metrics(v_mod)
-        g, _, _ = model.solve_optimal_policy_map(r_ts, fl_rally)
+        r_active = model.compute_rally_metrics(v_mod)
+        if recommended_action == MAP_ACTION["TOPSPIN"]:
+            g, _, _ = model.solve_optimal_policy_map(r_active, fl_rally)
+        else:
+            g, _, _ = model.solve_optimal_policy_map(ts_rally, r_active)
         return model.clamp_probability(g[score_us][score_them][server_state])
 
     for target in range(5):
-        sens_deltas.append(evaluate_renormalized_perturbation(ts_v, target) - resolved_equity)
+        sens_deltas.append(evaluate_renormalized_perturbation(active_v, target) - resolved_equity)
 
     ts_expected_wins: float = float(ts_ace_cnt) + (float(ts_poor_cnt) * (1.0 - k_poor)) + (float(ts_avg_cnt) * (1.0 - k_avg)) + (float(ts_perf_cnt) * (1.0 - k_perf))
     fl_expected_wins: float = float(fl_ace_cnt) + (float(fl_poor_cnt) * (1.0 - k_poor)) + (float(fl_avg_cnt) * (1.0 - k_avg)) + (float(fl_perf_cnt) * (1.0 - k_perf))
@@ -1029,6 +1036,7 @@ def execute_optimization_sequence(event: Any) -> None:
         "ts_rally": float(ts_rally), 
         "fl_rally": float(fl_rally),
         "sens_deltas": [float(x) for x in sens_deltas], 
+        "sens_serve_label": sens_serve_label,
         "mc_equity": float(mc_equity), 
         "mc_always_ts_equity": float(mc_always_ts_equity),
         "mc_always_fl_equity": float(mc_always_fl_equity),
