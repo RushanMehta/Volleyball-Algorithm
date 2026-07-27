@@ -24,7 +24,8 @@ class VolleyballMatchSimulator:
 
     def calculate_point_win_probability(self, serve_stats: dict) -> float:
         """
-        Calculates the probability that the serving team wins the rally.
+        Calculates the probability that the serving team wins the rally,
+        i.e. the probability we win a point WHEN WE ARE SERVING.
         """
         p_ace = serve_stats['ace_rate']
         p_error = serve_stats['error_rate']
@@ -44,15 +45,24 @@ class VolleyballMatchSimulator:
         # Total probability = Direct Ace + (Ball In Play * Rally Win Rate)
         return p_ace + (p_in * p_we_win_rally)
 
-    def compute_set_win_expectancy(self, score_us: int, score_them: int, p_win_point: float, memo=None) -> float:
+    def compute_set_win_expectancy(self, score_us: int, score_them: int, serving: bool,
+                                    p_win_serve: float, p_win_receive: float, memo=None) -> float:
         """
-        Uses Dynamic Programming / Recursion to find the exact probability 
+        Uses Dynamic Programming / Recursion to find the exact probability
         of winning a 25-point set (must win by 2) from any current score state.
+
+        Rally scoring means the point-win probability depends on WHO IS SERVING:
+        - p_win_serve: probability we win the rally when we are serving (function of our
+          serve profile and the opponent's pass/attack tendencies).
+        - p_win_receive: probability we win the rally when the opponent is serving, i.e.
+          our side-out rate. This does NOT depend on our serve stats at all.
+        Winning a rally always earns the point AND the serve for next point; losing a
+        rally means the opponent gets the point and now serves.
         """
         if memo is None:
             memo = {}
-            
-        state = (score_us, score_them)
+
+        state = (score_us, score_them, serving)
         if state in memo:
             return memo[state]
 
@@ -61,24 +71,35 @@ class VolleyballMatchSimulator:
             return 1.0
         if score_them >= 25 and (score_them - score_us) >= 2:
             return 0.0
-        
+
         # Cap deep deuce simulations to prevent stack overflows while maintaining accuracy
         if score_us > 30 or score_them > 30:
             if score_us == score_them:
                 return 0.5
             return 1.0 if score_us > score_them else 0.0
 
-        # Law of Total Probability: Probability of winning from this state
-        prob_if_we_win_point = self.compute_set_win_expectancy(score_us + 1, score_them, p_win_point, memo)
-        prob_if_we_lose_point = self.compute_set_win_expectancy(score_us, score_them + 1, p_win_point, memo)
-        
+        p_win_point = p_win_serve if serving else p_win_receive
+
+        # Winning the rally means WE serve the next point; losing it means the opponent does.
+        prob_if_we_win_point = self.compute_set_win_expectancy(
+            score_us + 1, score_them, True, p_win_serve, p_win_receive, memo)
+        prob_if_we_lose_point = self.compute_set_win_expectancy(
+            score_us, score_them + 1, False, p_win_serve, p_win_receive, memo)
+
         win_expectancy = (p_win_point * prob_if_we_win_point) + ((1 - p_win_point) * prob_if_we_lose_point)
         memo[state] = win_expectancy
         return win_expectancy
 
-    def get_optimal_strategy(self, current_score: tuple, player_profile: dict):
+    def get_optimal_strategy(self, current_score: tuple, player_profile: dict,
+                              serving: bool, our_sideout_rate: float):
         """
         Evaluates all strategies and returns the optimal choice for the coach.
+
+        current_score: (score_us, score_them)
+        serving: True if WE are about to serve at this score, False if the opponent is.
+        our_sideout_rate: our probability of winning a rally when RECEIVING serve
+            (i.e. our side-out %). Independent of which serve strategy is chosen, since
+            it isn't our serve on those points.
         """
         score_us, score_them = current_score
         best_strategy = None
@@ -86,12 +107,14 @@ class VolleyballMatchSimulator:
         strategy_analysis = {}
 
         for strategy_name, stats in player_profile.items():
-            # 1. Calculate probability of winning just this single point
+            # 1. Calculate probability of winning just this single point, if we serve it
             p_point = self.calculate_point_win_probability(stats)
-            
-            # 2. Calculate what that point does for our chances of winning the whole set
-            p_set = self.compute_set_win_expectancy(score_us, score_them, p_point)
-            
+
+            # 2. Calculate what that point does for our chances of winning the whole set,
+            #    properly alternating serve/receive probabilities throughout the recursion
+            p_set = self.compute_set_win_expectancy(
+                score_us, score_them, serving, p_point, our_sideout_rate)
+
             strategy_analysis[strategy_name] = {
                 "point_win_prob": round(p_point, 3),
                 "set_win_expectancy": round(p_set, 3)
@@ -137,10 +160,16 @@ if __name__ == "__main__":
         }
     }
     
-    # Current Score: Us 22, Them 23
+    # Current Score: Us 22, Them 23. We are about to serve.
     current_game_state = (22, 23)
-    
-    decision = coach_simulator.get_optimal_strategy(current_game_state, player_serve_matrix)
+    we_are_serving = True
+
+    # Our side-out rate: probability we win the rally when the OPPONENT is serving.
+    # This is independent of the serve strategy being evaluated above.
+    our_sideout_rate = 0.62
+
+    decision = coach_simulator.get_optimal_strategy(
+        current_game_state, player_serve_matrix, we_are_serving, our_sideout_rate)
     
     # --- Output Report ---
     print(f"--- MATCH DECISION REPORT ({coach_simulator.level} {coach_simulator.gender}) ---")
@@ -149,5 +178,5 @@ if __name__ == "__main__":
     print("Strategy Breakdown:")
     for strategy, metrics in decision['full_analysis'].items():
         print(f" -> {strategy}:")
-        print(f"    Rally Win Prob: {metrics['point_win_prob']*100}% | Set Win Expectancy: {metrics['set_win_expectancy']*100}%")
+        print(f"    Rally Win Prob (on our serve): {metrics['point_win_prob']*100}% | Set Win Expectancy: {metrics['set_win_expectancy']*100}%")
     print(f"\nExecuting the recommended strategy gives you a {decision['projected_set_win_probability']}% chance to win the set.")
