@@ -183,6 +183,27 @@
                         <button class="btn-secondary" style="background:#475569;" onclick="document.getElementById('import-file').click()">Import (Load from Computer)</button>
                     </div>
 
+                    <div style="margin-top:14px; padding:10px; background:#0f172a; border:1px solid var(--border); border-radius:8px;">
+                        <label style="font-weight:bold; margin-bottom:6px;">Import Serve Counts from a Stat-Keeping App (e.g. GameChanger CSV)</label>
+                        <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px;">
+                            Matches common column headers (Player/Name, Serve Att/SA, Aces, Errors) rather than one fixed schema, since exact export formats vary by app and account type.
+                            These apps track total serves/aces/errors but not opponent pass quality — the Poor/Avg/Perfect pass fields are filled with a placeholder split you should correct from film or a charting tool.
+                        </p>
+                        <div class="count-entry-row" style="grid-template-columns: 1fr 1fr;">
+                            <div class="input-group"><label>Import Into</label>
+                                <select id="csv-import-target"><option value="ts">Topspin fields</option><option value="fl">Float fields</option></select>
+                            </div>
+                            <div class="input-group"><label>&nbsp;</label>
+                                <input type="file" id="csv-import-file" accept=".csv" onchange="handleCSVImport(event)">
+                            </div>
+                        </div>
+                        <div class="input-group" id="csv-player-picker-wrap" style="display:none;">
+                            <label>Multiple players found — choose one to load</label>
+                            <select id="csv-player-picker" onchange="applyCSVPlayerSelection()"></select>
+                        </div>
+                        <div id="csv-import-status" style="font-size:0.8rem; margin-top:6px;"></div>
+                    </div>
+
                     <div class="section-title">2. Opponent Performance Stats</div>
                     <div class="grid-2">
                         <div class="input-group"><label>Opponent Attack Win % on a POOR pass</label><input type="number" id="opp_kill_poor" value="38" min="0" max="100"></div>
@@ -262,14 +283,17 @@
         </div>
 
         <div id="tab-validation" class="tab-content">
-            <div class="section-title">Validation Against Real Matches & Traditional Strategies</div>
+            <div class="section-title">Strategy Benchmarks & Model Self-Checks</div>
             <p style="margin-bottom: 15px; color: var(--text-muted);">
-                Below are real performance benchmarks verifying this model's recommendations against standard strategies and historical match outcomes.
+                The simulation cross-check and strategy comparisons below are computed directly from this model (Monte Carlo re-simulation of its own policy). The prediction-concordance row uses a small set of illustrative synthetic score scenarios to demonstrate how the check works — it is <strong>not</strong> real recorded match data, and shouldn't be read as evidence the model predicts real outcomes. Genuine validation requires testing against actual logged matches, which this tool does not yet include.
             </p>
             <div id="output-validation-metrics">
                 <p style="color:var(--text-muted)">Perform an evaluation calculation on the dashboard to output comparison charts.</p>
             </div>
         </div>
+        <!-- This tool applies to any level of play -- High School, Club, College, or Pro -- since opponent
+             attack efficiency (poor/average/perfect-pass kill %) is entered directly from what you observe,
+             rather than assumed from a fixed level/gender table. -->
 
         <div id="tab-model-details" class="tab-content">
             <div class="section-title">How the Math and Predictions Work</div>
@@ -412,6 +436,147 @@
             };
             reader.readAsText(file);
         }
+
+        // ---- CSV import from stat-keeping apps (e.g. GameChanger) ----
+        // Note: GameChanger's own docs confirm a season-stats CSV export for
+        // baseball/softball/basketball specifically; a fixed, documented CSV schema for
+        // volleyball wasn't something that could be verified here. This matches on common
+        // volleyball box-score header wording instead of one exact assumed schema.
+        const CSV_HEADER_ALIASES = {
+            player: ['player', 'name', 'player name', 'athlete'],
+            total: ['sa', 'serve att', 'serve attempts', 'serves', 'attempts', 'total serves', 's att', 'srv att'],
+            ace: ['ace', 'aces', 'sa-ace', 'service aces'],
+            error: ['se', 'serve err', 'serve errors', 'errors', 'service errors', 'err'],
+        };
+
+        function parseCSVText(text) {
+            // Minimal CSV parser: handles quoted fields containing commas.
+            const rows = [];
+            let row = [], field = '', inQuotes = false;
+            for (let i = 0; i < text.length; i++) {
+                const c = text[i];
+                if (inQuotes) {
+                    if (c === '"') {
+                        if (text[i+1] === '"') { field += '"'; i++; } else { inQuotes = false; }
+                    } else { field += c; }
+                } else {
+                    if (c === '"') inQuotes = true;
+                    else if (c === ',') { row.push(field); field = ''; }
+                    else if (c === '\n' || c === '\r') {
+                        if (c === '\r' && text[i+1] === '\n') i++;
+                        row.push(field); field = '';
+                        if (row.length > 1 || row[0] !== '') rows.push(row);
+                        row = [];
+                    } else { field += c; }
+                }
+            }
+            if (field !== '' || row.length > 0) { row.push(field); rows.push(row); }
+            return rows;
+        }
+
+        function findCSVColumn(headerMap, aliases) {
+            for (const alias of aliases) {
+                if (alias in headerMap) return headerMap[alias];
+            }
+            return null;
+        }
+
+        function handleCSVImport(event) {
+            const file = event.target.files[0];
+            const status = document.getElementById("csv-import-status");
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const rows = parseCSVText(e.target.result);
+                    if (rows.length < 2) throw new Error("File has no data rows.");
+                    const rawHeaders = rows[0];
+                    const headerMap = {};
+                    rawHeaders.forEach((h, idx) => { headerMap[h.trim().toLowerCase()] = idx; });
+
+                    const idxPlayer = findCSVColumn(headerMap, CSV_HEADER_ALIASES.player);
+                    const idxTotal = findCSVColumn(headerMap, CSV_HEADER_ALIASES.total);
+                    const idxAce = findCSVColumn(headerMap, CSV_HEADER_ALIASES.ace);
+                    const idxError = findCSVColumn(headerMap, CSV_HEADER_ALIASES.error);
+
+                    const missing = [];
+                    if (idxPlayer === null) missing.push("player name");
+                    if (idxTotal === null) missing.push("total serves");
+                    if (idxAce === null) missing.push("aces");
+                    if (idxError === null) missing.push("errors");
+                    if (missing.length > 0) {
+                        throw new Error(`Couldn't find columns for: ${missing.join(", ")}. Detected headers: ${rawHeaders.join(", ")}`);
+                    }
+
+                    const players = {};
+                    for (let i = 1; i < rows.length; i++) {
+                        const r = rows[i];
+                        if (!r || r.length === 0) continue;
+                        const name = (r[idxPlayer] || "").trim();
+                        if (!name) continue;
+                        const total = parseInt(r[idxTotal], 10);
+                        const ace = parseInt(r[idxAce], 10);
+                        const err = parseInt(r[idxError], 10);
+                        if (isNaN(total) || isNaN(ace) || isNaN(err)) continue;
+                        players[name] = { total, ace, err };
+                    }
+
+                    const names = Object.keys(players);
+                    if (names.length === 0) throw new Error("No valid player rows found.");
+
+                    window._csvParsedPlayers = players;
+                    const picker = document.getElementById("csv-player-picker");
+                    const pickerWrap = document.getElementById("csv-player-picker-wrap");
+                    picker.innerHTML = "";
+                    names.forEach(n => {
+                        const o = document.createElement("option"); o.value = n; o.textContent = n; picker.appendChild(o);
+                    });
+
+                    if (names.length > 1) {
+                        pickerWrap.style.display = "block";
+                        applyCSVPlayerSelection();
+                        status.style.color = "#60a5fa";
+                        status.innerText = `Found ${names.length} players. Showing "${names[0]}" — use the dropdown above to switch, then Save Player Stats to add each to your roster.`;
+                    } else {
+                        pickerWrap.style.display = "none";
+                        loadCSVPlayerIntoForm(names[0]);
+                        status.style.color = "#22c55e";
+                        status.innerText = `Loaded "${names[0]}" into the form below. Review the Poor/Avg/Perfect pass placeholders, then Save Player Stats.`;
+                    }
+                } catch (err) {
+                    status.style.color = "#ef4444";
+                    status.innerText = "Import error: " + err.message;
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function applyCSVPlayerSelection() {
+            const picker = document.getElementById("csv-player-picker");
+            if (picker.value) loadCSVPlayerIntoForm(picker.value);
+        }
+
+        function loadCSVPlayerIntoForm(name) {
+            const rec = window._csvParsedPlayers[name];
+            if (!rec) return;
+            const target = document.getElementById("csv-import-target").value; // "ts" or "fl"
+            const inPlay = Math.max(0, rec.total - rec.ace - rec.err);
+
+            dom.p_name.value = name;
+
+            const prefix = "p_" + target + "_";
+            document.getElementById(prefix + "n").value = rec.total;
+            document.getElementById(prefix + "ace").value = rec.ace;
+            document.getElementById(prefix + "err").value = rec.err;
+            // GameChanger-style exports don't track opponent pass quality. All in-play
+            // serves are placed in "Avg Pass" as an explicit placeholder -- not a real
+            // estimate -- purely so the counts sum correctly. Replace from film/charting.
+            document.getElementById(prefix + "poor").value = 0;
+            document.getElementById(prefix + "avg").value = inPlay;
+            document.getElementById(prefix + "perf").value = 0;
+
+            clearInputErrors();
+        }
         
         // HELPER TO CLEAR RUNTIME ERRORS
         function clearInputErrors() {
@@ -461,6 +626,14 @@
                 </div>
                 <div>Based on mathematical modeling, <strong>${best_str}</strong> yields the optimal play expectancy for this exact score.</div>
             </div>
+            ${(data.ts_low_confidence || data.fl_low_confidence) ? `
+            <div style='background:#7c2d12; color:#fed7aa; padding:10px 14px; border-radius:6px; margin-bottom:15px; font-size:0.85rem;'>
+                ⚠️ <strong>Small sample warning:</strong>
+                ${data.ts_low_confidence ? `Topspin log has only ${data.ts_n} serves` : ''}
+                ${(data.ts_low_confidence && data.fl_low_confidence) ? ' and ' : ''}
+                ${data.fl_low_confidence ? `Float log has only ${data.fl_n} serves` : ''}
+                (below the ${data.min_reliable_sample}-serve reliability threshold). Rates below are shrunk toward a generic prior to compensate, but treat this recommendation cautiously until more serves are logged.
+            </div>` : ''}
             <div class='grid-2' style='margin-top:15px;'>
                 <div>
                     <h4>Expected Set Win Chance</h4>
@@ -471,10 +644,11 @@
                     
                     <h4 style='margin-top:15px;'>Rally Win % Expectations (adjusted for pressure at this score)</h4>
                     <table style='margin-top:5px;'>
-                        <tr><td>Serve Type</td><td>At This Score</td><td>Season Average (no pressure)</td></tr>
-                        <tr><td>Topspin</td><td>${(data.ts_rally * 100).toFixed(1)}%</td><td>${(data.ts_rally_base * 100).toFixed(1)}%</td></tr>
-                        <tr><td>Float</td><td>${(data.fl_rally * 100).toFixed(1)}%</td><td>${(data.fl_rally_base * 100).toFixed(1)}%</td></tr>
+                        <tr><td>Serve Type</td><td>At This Score</td><td>Season Avg (shrunk)</td><td>Season Avg (raw, unshrunk)</td></tr>
+                        <tr><td>Topspin${data.ts_low_confidence ? ' ⚠️' : ''}</td><td>${(data.ts_rally * 100).toFixed(1)}%</td><td>${(data.ts_rally_base * 100).toFixed(1)}%</td><td>${(data.ts_rally_raw_unshrunk * 100).toFixed(1)}%</td></tr>
+                        <tr><td>Float${data.fl_low_confidence ? ' ⚠️' : ''}</td><td>${(data.fl_rally * 100).toFixed(1)}%</td><td>${(data.fl_rally_base * 100).toFixed(1)}%</td><td>${(data.fl_rally_raw_unshrunk * 100).toFixed(1)}%</td></tr>
                     </table>
+                    <p style='font-size:0.75rem; color:var(--text-muted); margin-top:4px;'>"Shrunk" pulls small samples toward a generic prior so a lucky/unlucky handful of serves isn't treated as a settled tendency (n=${data.ts_n} topspin, n=${data.fl_n} float logged). "Raw" is the literal observed rate with no adjustment.</p>
                 </div>
                 <div>
                     <h4>Skill Sensitivity Analysis — ${data.sens_serve_label} Serve (Impact of 1% Improvement)</h4>
@@ -512,8 +686,8 @@
                     <tr><td>Simulation Verification Result</td><td><strong>${(data.mc_equity * 100).toFixed(2)}%</strong> Expected Win Rate</td></tr>
                     <tr><td>Simulation Convergence Validation Margin</td><td><span class='badge badge-high'>${(Math.abs(data.resolved_equity - data.mc_equity) * 100).toFixed(2)}% Difference</span></td></tr>
                     <tr style='background:#1e293b; font-weight:bold;'>
-                        <td>Historical Accuracy Verification Rate (Using 32 Played High School Sets)</td>
-                        <td><span class='badge badge-high' style='font-size:0.85rem;'>${(data.dataset_accuracy * 100).toFixed(1)}% Pred Concordance Accuracy</span></td>
+                        <td>Prediction Concordance on Synthetic Test Scenarios <span style='font-weight:normal; color:var(--text-muted); font-size:0.75rem;'>(illustrative, not real matches)</span></td>
+                        <td><span class='badge badge-high' style='font-size:0.85rem;'>${(data.dataset_accuracy * 100).toFixed(1)}% Pred Concordance</span></td>
                     </tr>
                     <tr><td>Topspin Confidence Interval Limits (95% Certainty Bounds)</td><td>${(data.ts_low * 100).toFixed(1)}% – ${(data.ts_high * 100).toFixed(1)}% expected spread</td></tr>
                     <tr><td>Float Confidence Interval Limits (95% Certainty Bounds)</td><td>${(data.fl_low * 100).toFixed(1)}% – ${(data.fl_high * 100).toFixed(1)}% expected spread</td></tr>
@@ -651,6 +825,27 @@ FIXED_CAP: int = 27
 RANDOM_SEED: int = 42
 
 # How many points away from set/match point "endgame proximity" starts ramping up to 1.0
+# Empirical-Bayes shrinkage: pulls small-sample serve stats toward a generic prior instead
+# of trusting a raw rate from a handful of serves. These priors are rough, generic starting
+# points (not measured truth for any team); as sample size grows the shrunk rate converges
+# to the observed rate regardless of what these are set to.
+SHRINKAGE_PRIOR: List[float] = [0.10, 0.12, 0.28, 0.28, 0.22]  # ace, error, poor, avg, perfect
+SHRINKAGE_PSEUDO_COUNT: float = 20.0
+MIN_RELIABLE_SAMPLE: int = 30
+
+def shrink_categorical_vector(counts: List[int], n: int) -> List[float]:
+    """
+    Empirical-Bayes shrinkage for a 5-way categorical rate (ace/error/poor/avg/perfect).
+    Blends observed counts toward SHRINKAGE_PRIOR, weighted by SHRINKAGE_PSEUDO_COUNT
+    "worth" of prior observations -- a stat from a dozen serves gets pulled hard toward
+    the prior; one from 600 serves is barely moved. Result still sums to 1.0.
+    """
+    total_weight = n + SHRINKAGE_PSEUDO_COUNT
+    return [
+        (counts[i] + SHRINKAGE_PRIOR[i] * SHRINKAGE_PSEUDO_COUNT) / total_weight
+        for i in range(len(counts))
+    ]
+
 PRESSURE_ENDGAME_WINDOW: int = 6
 # How close the score margin needs to be for "tightness" to ramp from 0 up to 1.0
 PRESSURE_MARGIN_WINDOW: int = 6
@@ -698,6 +893,73 @@ class ProportionalInductionEngine:
                     v[i] *= scale
         return v
 
+    def solve_deuce_tail(self, ts_v: List[float], fl_v: List[float], ts_amp: float, fl_amp: float) -> Dict[str, Any]:
+        """
+        Exact closed-form solution for the region beyond self.max_cap, replacing the old
+        "just guess 0.5/1/0" boundary approximation.
+
+        Once both scores are past SET_POINTS, pressure (see get_pressure) stops depending
+        on the absolute score and depends only on the score DIFFERENCE d in {-1, 0, 1}
+        (|d| >= 2 already ends the set). That makes the region a stationary Markov chain,
+        solvable exactly instead of approximated:
+
+            p_s(d) = the better of topspin/float's pressure-adjusted point-win probability
+                     at difference d (whichever is better dominates at every state with
+                     that same pressure, same reasoning as the main policy decision)
+            p_r    = our_sideout (pressure-invariant -- pressure only models OUR serve
+                     execution risk, not the opponent's)
+
+            V(d, serving) = p*V(d+1, True) + (1-p)*V(d-1, False),  p = p_s(d) if serving else p_r
+            V(+2,*) = 1, V(-2,*) = 0
+
+        Solving the resulting linear system for V(0,T)/V(0,F) (with V(+-1,*) following
+        directly) gives an exact tail value -- verified numerically against a brute-force
+        high-cap DP to machine precision for several pressure/probability combinations.
+        """
+        p_s: Dict[int, float] = {}
+        p_ts_at: Dict[int, float] = {}
+        p_fl_at: Dict[int, float] = {}
+        action_at: Dict[int, int] = {}
+        delta_at: Dict[int, float] = {}
+        # Any deep, tied-region coordinate works to read off the saturated pressure for a
+        # given difference d -- pressure no longer depends on the absolute score there.
+        probe_base = max(SET_POINTS, self.max_cap) + 10
+        for d in (-1, 0, 1):
+            pressure_d = self.get_pressure(probe_base, probe_base - d)
+            p_ts_d = self.compute_rally_metrics(self.apply_pressure(ts_v, pressure_d, ts_amp))
+            p_fl_d = self.compute_rally_metrics(self.apply_pressure(fl_v, pressure_d, fl_amp))
+            p_ts_at[d] = p_ts_d
+            p_fl_at[d] = p_fl_d
+            p_s[d] = max(p_ts_d, p_fl_d)
+            action_at[d] = MAP_ACTION["TOPSPIN"] if p_ts_d >= p_fl_d else MAP_ACTION["FLOAT"]
+            delta_at[d] = p_ts_d - p_fl_d
+
+        p_r = self.our_sideout
+
+        A1 = 1 - (1 - p_s[0]) * p_r
+        A2 = p_s[0] * (1 - p_s[1])
+        A_rhs = p_s[0] * p_s[1]
+        B1 = 1 - p_r * (1 - p_s[1])
+        B2 = (1 - p_r) * p_r
+        B_rhs = p_r * p_s[1]
+        D = A1 * B1 - A2 * B2
+
+        V0T = (A_rhs * B1 + A2 * B_rhs) / D
+        V0F = (A1 * B_rhs + B2 * A_rhs) / D
+        V1T = p_s[1] + (1 - p_s[1]) * V0F
+        V1F = p_r + (1 - p_r) * V0F
+        Vm1T = p_s[-1] * V0T
+        Vm1F = p_r * V0T
+
+        return {
+            "v": {0: {True: V0T, False: V0F}, 1: {True: V1T, False: V1F}, -1: {True: Vm1T, False: Vm1F}},
+            "action_at": action_at,
+            "delta_at": delta_at,
+            "p_s": p_s,
+            "p_ts_at": p_ts_at,
+            "p_fl_at": p_fl_at,
+        }
+
     def solve_optimal_policy_map(self, ts_v: List[float], fl_v: List[float], ts_amp: float, fl_amp: float) -> Tuple[List[List[List[float]]], List[List[List[int]]], List[List[List[float]]], List[List[float]], List[List[float]]]:
         dim: int = self.max_cap + 2
         v_grid: List[List[List[float]]] = [[[0.0] * 2 for _ in range(dim)] for _ in range(dim)]
@@ -706,6 +968,8 @@ class ProportionalInductionEngine:
         ts_rally_grid: List[List[float]] = [[0.0] * dim for _ in range(dim)]
         fl_rally_grid: List[List[float]] = [[0.0] * dim for _ in range(dim)]
         self.states_allocated = 0
+
+        deuce_tail = self.solve_deuce_tail(ts_v, fl_v, ts_amp, fl_amp)
 
         for u in range(dim):
             for t in range(dim):
@@ -716,13 +980,15 @@ class ProportionalInductionEngine:
                     v_grid[u][t][MAP_STATE["OUR_SERVE"]] = self.clamp_probability(0.0)
                     v_grid[u][t][MAP_STATE["THEIR_SERVE"]] = self.clamp_probability(0.0)
                 elif u >= self.max_cap or t >= self.max_cap:
-                    if u == t:
-                        v_grid[u][t][MAP_STATE["OUR_SERVE"]] = self.clamp_probability(0.5)
-                        v_grid[u][t][MAP_STATE["THEIR_SERVE"]] = self.clamp_probability(0.5)
-                    else:
-                        val = self.clamp_probability(1.0 if u > t else 0.0)
-                        v_grid[u][t][MAP_STATE["OUR_SERVE"]] = val
-                        v_grid[u][t][MAP_STATE["THEIR_SERVE"]] = val
+                    # |diff| here is guaranteed to be 0 or 1: any |diff| >= 2 at u or t >= 25
+                    # was already handled by the two terminal branches above.
+                    d = max(-1, min(1, u - t))
+                    v_grid[u][t][MAP_STATE["OUR_SERVE"]] = self.clamp_probability(deuce_tail["v"][d][True])
+                    v_grid[u][t][MAP_STATE["THEIR_SERVE"]] = self.clamp_probability(deuce_tail["v"][d][False])
+                    policy_grid[u][t][MAP_STATE["OUR_SERVE"]] = deuce_tail["action_at"][d]
+                    delta_v_grid[u][t][MAP_STATE["OUR_SERVE"]] = deuce_tail["delta_at"][d]
+                    ts_rally_grid[u][t] = deuce_tail["p_ts_at"][d]
+                    fl_rally_grid[u][t] = deuce_tail["p_fl_at"][d]
 
         for sum_sc in range(2 * self.max_cap, -1, -1):
             for u in range(self.max_cap + 1):
@@ -982,8 +1248,16 @@ def execute_optimization_sequence(event: Any) -> None:
     if score_us > deuce_cap or score_them > deuce_cap:
         deuce_cap = max(score_us + WIN_MARGIN, score_them + WIN_MARGIN)
 
-    ts_v: List[float] = [ts_ace_cnt/ts_n, ts_err_cnt/ts_n, ts_poor_cnt/ts_n, ts_avg_cnt/ts_n, ts_perf_cnt/ts_n]
-    fl_v: List[float] = [fl_ace_cnt/fl_n, fl_err_cnt/fl_n, fl_poor_cnt/fl_n, fl_avg_cnt/fl_n, fl_perf_cnt/fl_n]
+    ts_v_raw: List[float] = [ts_ace_cnt/ts_n, ts_err_cnt/ts_n, ts_poor_cnt/ts_n, ts_avg_cnt/ts_n, ts_perf_cnt/ts_n]
+    fl_v_raw: List[float] = [fl_ace_cnt/fl_n, fl_err_cnt/fl_n, fl_poor_cnt/fl_n, fl_avg_cnt/fl_n, fl_perf_cnt/fl_n]
+
+    # Shrink small-sample rates toward a generic prior before they drive any decisions.
+    # With enough serves logged this barely moves the numbers; with a handful of serves
+    # it keeps a lucky/unlucky small sample from being treated as a settled tendency.
+    ts_v: List[float] = shrink_categorical_vector([ts_ace_cnt, ts_err_cnt, ts_poor_cnt, ts_avg_cnt, ts_perf_cnt], ts_n)
+    fl_v: List[float] = shrink_categorical_vector([fl_ace_cnt, fl_err_cnt, fl_poor_cnt, fl_avg_cnt, fl_perf_cnt], fl_n)
+    ts_low_confidence: bool = ts_n < MIN_RELIABLE_SAMPLE
+    fl_low_confidence: bool = fl_n < MIN_RELIABLE_SAMPLE
 
     server_state: int = MAP_STATE["OUR_SERVE"] if document.getElementById("current_poss").value == "us" else MAP_STATE["THEIR_SERVE"]
 
@@ -1045,7 +1319,10 @@ def execute_optimization_sequence(event: Any) -> None:
     mc_always_fl_equity: float = model.run_policy_simulation(score_us, score_them, server_state, ts_v, fl_v, press_amp_ts, press_amp_fl, policy_grid, high_precision_trials, "always_fl")
     mc_naive_equity: float = model.run_policy_simulation(score_us, score_them, server_state, ts_v, fl_v, press_amp_ts, press_amp_fl, policy_grid, high_precision_trials, "naive")
 
-    validation_historical_dataset: List[Dict[str, Any]] = [
+    # Illustrative synthetic score scenarios -- NOT real recorded matches, from any level
+    # of play. This exists to demonstrate the concordance-check mechanism itself. Real
+    # validation requires testing predictions against actual logged match outcomes.
+    synthetic_test_scenarios: List[Dict[str, Any]] = [
         {"us": 12, "them": 14, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "us"},
         {"us": 24, "them": 23, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "us"},
         {"us": 4, "them": 9, "server": MAP_STATE["THEIR_SERVE"], "observed_winner": "them"},
@@ -1081,7 +1358,7 @@ def execute_optimization_sequence(event: Any) -> None:
     ]
 
     concordant_predictions: int = 0
-    for data_point in validation_historical_dataset:
+    for data_point in synthetic_test_scenarios:
         u_pt, t_pt, s_pt = data_point["us"], data_point["them"], data_point["server"]
         if u_pt < deuce_cap + 1 and t_pt < deuce_cap + 1:
             predicted_equity: float = v_grid[u_pt][t_pt][s_pt]
@@ -1089,7 +1366,7 @@ def execute_optimization_sequence(event: Any) -> None:
             if inferred_prediction == data_point["observed_winner"]:
                 concordant_predictions += 1
 
-    dataset_accuracy: float = concordant_predictions / len(validation_historical_dataset)
+    dataset_accuracy: float = concordant_predictions / len(synthetic_test_scenarios)
 
     flat_policy: List[int] = []
     flat_delta_v: List[float] = []
@@ -1109,6 +1386,13 @@ def execute_optimization_sequence(event: Any) -> None:
         "fl_rally": float(fl_rally),
         "ts_rally_base": float(ts_rally_base),
         "fl_rally_base": float(fl_rally_base),
+        "ts_n": int(ts_n),
+        "fl_n": int(fl_n),
+        "ts_low_confidence": bool(ts_low_confidence),
+        "fl_low_confidence": bool(fl_low_confidence),
+        "min_reliable_sample": int(MIN_RELIABLE_SAMPLE),
+        "ts_rally_raw_unshrunk": float(model.compute_rally_metrics(ts_v_raw)),
+        "fl_rally_raw_unshrunk": float(model.compute_rally_metrics(fl_v_raw)),
         "pressure_at_score": float(pressure_at_score),
         "press_amp_ts": float(press_amp_ts),
         "press_amp_fl": float(press_amp_fl),
