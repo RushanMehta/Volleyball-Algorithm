@@ -1,9 +1,15 @@
+import csv
+import io
+import csv
+import io
 from typing import Dict, Tuple, Optional, List
 
 
 class VolleyballMatchSimulator:
     """
-    Serve-strategy decision engine for rally-scoring volleyball.
+    Serve-strategy decision engine for rally-scoring volleyball. Applies to High School,
+    Club, College, and Pro play -- pass the level/gender that fits, or better, supply
+    opponent_stats= directly from what you've actually observed of a specific opponent.
 
     Improvements in this version, in response to external review:
       1. Opponent-specific attack rates can override the level/gender baseline.
@@ -17,6 +23,7 @@ class VolleyballMatchSimulator:
       6. Validation scaffolding: a method to check predictions against real recorded sets
          (you must supply real match logs -- there is no substitute for that, and this
          method will happily report a misleadingly good number if fed synthetic data).
+      7. CSV import for serve stats exported from stat-keeping apps (e.g. GameChanger).
     """
 
     # ---- Shrinkage priors -------------------------------------------------------------
@@ -49,6 +56,12 @@ class VolleyballMatchSimulator:
             ('Pro', 'Girls'): {'in_system': 0.52, 'out_system': 0.28},
             ('College', 'Boys'): {'in_system': 0.58, 'out_system': 0.34},
             ('College', 'Girls'): {'in_system': 0.46, 'out_system': 0.24},
+            # Club/travel ball spans a wide skill range (12s through 18s, various
+            # circuits) -- these sit between High School and College as a rough midpoint,
+            # not a measured figure. Prefer opponent_stats= if you have real numbers for
+            # the specific club team you're facing.
+            ('Club', 'Boys'): {'in_system': 0.54, 'out_system': 0.31},
+            ('Club', 'Girls'): {'in_system': 0.42, 'out_system': 0.20},
             ('High School', 'Boys'): {'in_system': 0.50, 'out_system': 0.28},
             ('High School', 'Girls'): {'in_system': 0.38, 'out_system': 0.16}
         }
@@ -89,13 +102,21 @@ class VolleyballMatchSimulator:
 
         serve_counts expects:
             total_serves, ace_count, error_count,
-            opp_perfect_pass_count, opp_total_passes_observed (defaults to total_serves)
+            opp_perfect_pass_count, opp_total_passes_observed (defaults to total_serves,
+            but ONLY if opp_perfect_pass_count was actually supplied)
+
+        If opp_perfect_pass_count is omitted entirely (e.g. importing from an app that
+        doesn't track pass quality), that's "no data", not "observed zero successes" --
+        treating it as the latter would wrongly drag the estimate toward 0 instead of
+        toward the prior. So a missing key here means "trust the prior fully."
         """
         n = serve_counts['total_serves']
         ace_count = serve_counts['ace_count']
         error_count = serve_counts['error_count']
-        pass_n = serve_counts.get('opp_total_passes_observed', n)
+
+        pass_data_available = 'opp_perfect_pass_count' in serve_counts
         pass_successes = serve_counts.get('opp_perfect_pass_count', 0)
+        pass_n = serve_counts.get('opp_total_passes_observed', n) if pass_data_available else 0
 
         ace_rate = cls._shrink(ace_count, n, cls.PRIOR_ACE_RATE, cls.SHRINKAGE_PSEUDO_COUNT)
         error_rate = cls._shrink(error_count, n, cls.PRIOR_ERROR_RATE, cls.SHRINKAGE_PSEUDO_COUNT)
@@ -105,12 +126,134 @@ class VolleyballMatchSimulator:
             'ace_rate': ace_rate,
             'error_rate': error_rate,
             'opp_perfect_pass_rate': opp_perfect_pass_rate,
+            'pass_data_available': pass_data_available,
             'sample_size': n,
             'raw_ace_rate': (ace_count / n) if n else 0.0,
             'raw_error_rate': (error_count / n) if n else 0.0,
             'ace_rate_95ci': cls._wilson_bounds(ace_count, n),
             'error_rate_95ci': cls._wilson_bounds(error_count, n),
         }
+
+    # ---- Importing stats from tracking apps (GameChanger, etc.) -----------------------
+
+    # Column-header aliases to try to auto-match against a CSV's header row. Case- and
+    # whitespace-insensitive, substring match. NOTE: I don't have a confirmed sample of
+    # GameChanger's actual volleyball export column names (their docs describe the stats
+    # tracked -- service attempts, aces, errors -- but not the literal CSV headers), so
+    # this is a best-effort fuzzy matcher, not a guaranteed-exact GameChanger parser. It's
+    # written broadly enough to also catch similarly-named exports from other stat apps
+    # (Hudl, VolleyMetrics, MaxPreps, hand-built spreadsheets, etc.). Always check the
+    # printed column mapping against your file, and use column_map= to override anything
+    # it gets wrong.
+    _PLAYER_ALIASES = ["player", "name", "athlete"]
+    _ATTEMPTS_ALIASES = ["serve att", "service att", "sa", "attempts", "total serves", "serves"]
+    _ACE_ALIASES = ["ace"]
+    _ERROR_ALIASES = ["serve err", "service err", "se", "errors", "err"]
+
+    @classmethod
+    def _match_column(cls, headers: List[str], aliases: List[str]) -> Optional[str]:
+        normalized = {h: h.strip().lower() for h in headers}
+        # Prefer exact matches first, then substring matches, so e.g. "SA" doesn't
+        # accidentally grab a column like "Sac Flies" -- exact alias match wins.
+        for h, norm in normalized.items():
+            if norm in aliases:
+                return h
+        for h, norm in normalized.items():
+            if any(alias in norm for alias in aliases):
+                return h
+        return None
+
+    @classmethod
+    def import_gamechanger_csv(cls, filepath_or_text: str, is_text: bool = False,
+                                player_filter: Optional[str] = None,
+                                column_map: Optional[Dict[str, str]] = None) -> Dict[str, dict]:
+        """
+        Imports per-player serve counts (attempts, aces, errors) from a CSV export --
+        built primarily with GameChanger's volleyball "Export Stats" file in mind, but
+        works with any CSV that has a player column plus serve attempts/aces/errors
+        columns under roughly those names.
+
+        IMPORTANT LIMITATION: GameChanger's volleyball stat tracking (as documented)
+        covers service attempts, aces, and errors -- it does not appear to track *pass
+        quality forced on the opponent* (poor/average/perfect pass rates), which this
+        model also wants. Imported profiles will therefore have real ace/error/attempt
+        counts but NO pass-quality data. That's handled correctly (see the shrinkage fix
+        above) by falling back entirely to the model's prior for that piece, rather than
+        wrongly assuming "we observed zero good passes." If you separately chart pass
+        quality, add 'opp_perfect_pass_count' / 'opp_total_passes_observed' to the
+        returned dict for a given player before calling get_optimal_strategy.
+
+        Also note: most stat-tracking apps (including GameChanger, as far as I can tell)
+        record serves in aggregate -- they don't tag each serve as "topspin" vs "float"
+        the way this tool's own dashboard does. So an import gives you one combined serve
+        profile per player, not a pre-split topspin/float pair. If you track serve type
+        yourself, you'll still need to split those counts by hand.
+
+        filepath_or_text: path to the CSV file, or the raw CSV text itself if is_text=True.
+        player_filter: if given, only rows whose player column contains this substring
+            (case-insensitive) are included; otherwise every player row found is returned.
+        column_map: optional explicit override, e.g.
+            {'player': 'Player Name', 'attempts': 'SA', 'ace': 'Ace', 'error': 'SE'}
+            for any column the auto-matcher gets wrong.
+
+        Returns: {player_name: {"total_serves": int, "ace_count": int, "error_count": int}}
+        plus a special "_column_mapping_used" key describing what was auto-detected, so
+        you can sanity-check it against your actual file.
+        """
+        text = filepath_or_text if is_text else open(filepath_or_text, newline='', encoding='utf-8-sig').read()
+        reader = csv.DictReader(io.StringIO(text))
+        headers = reader.fieldnames or []
+        if not headers:
+            raise ValueError("No header row detected -- is this actually a CSV export?")
+
+        column_map = column_map or {}
+        player_col = column_map.get('player') or cls._match_column(headers, cls._PLAYER_ALIASES)
+        attempts_col = column_map.get('attempts') or cls._match_column(headers, cls._ATTEMPTS_ALIASES)
+        ace_col = column_map.get('ace') or cls._match_column(headers, cls._ACE_ALIASES)
+        error_col = column_map.get('error') or cls._match_column(headers, cls._ERROR_ALIASES)
+
+        missing = [name for name, col in
+                   [("player", player_col), ("serve attempts", attempts_col),
+                    ("aces", ace_col), ("errors", error_col)] if col is None]
+        if missing:
+            raise ValueError(
+                f"Couldn't auto-detect column(s) for: {', '.join(missing)}. "
+                f"Headers found in the file were: {headers}. "
+                f"Pass column_map={{'player': ..., 'attempts': ..., 'ace': ..., 'error': ...}} "
+                f"to specify them manually."
+            )
+
+        players: Dict[str, dict] = {}
+        for row in reader:
+            name = (row.get(player_col) or "").strip()
+            if not name:
+                continue
+            if player_filter and player_filter.lower() not in name.lower():
+                continue
+
+            def _to_int(val):
+                try:
+                    return int(float(str(val).strip() or 0))
+                except (ValueError, TypeError):
+                    return 0
+
+            attempts = _to_int(row.get(attempts_col))
+            aces = _to_int(row.get(ace_col))
+            errors = _to_int(row.get(error_col))
+
+            if name not in players:
+                players[name] = {"total_serves": 0, "ace_count": 0, "error_count": 0}
+            players[name]["total_serves"] += attempts
+            players[name]["ace_count"] += aces
+            players[name]["error_count"] += errors
+
+        players["_column_mapping_used"] = {
+            "player": player_col, "attempts": attempts_col, "ace": ace_col, "error": error_col,
+            "note": "Double-check these against your file's actual headers. No pass-quality "
+                    "data was imported (see method docstring) -- the model will fall back to "
+                    "its prior for opponent pass quality until you supply that separately."
+        }
+        return players
 
     def calculate_point_win_probability(self, serve_stats: dict) -> float:
         """
@@ -307,6 +450,94 @@ class VolleyballMatchSimulator:
             "any_low_confidence": any(v["low_confidence"] for v in strategy_analysis.values()),
             "full_analysis": strategy_analysis
         }
+
+    # ---- CSV import from stat-keeping apps -------------------------------------------------
+
+    # Fuzzy header aliases for common volleyball serve-stat exports. Note: as of this
+    # writing, GameChanger's own documentation confirms a season-stats CSV export for
+    # baseball/softball/basketball specifically, but does not document a fixed CSV export
+    # schema for volleyball -- volleyball box scores (attempts/aces/errors) exist in-app,
+    # but the exact exported column names aren't something I can verify without a sample
+    # file. This matcher works on wording common to volleyball box scores generally
+    # (GameChanger included, if you're able to export or copy one), rather than assuming
+    # one exact schema. If a file doesn't match, the error message lists the headers it
+    # found so you can extend _HEADER_ALIASES or map columns by hand.
+    _HEADER_ALIASES = {
+        'player': ['player', 'name', 'player name', 'athlete'],
+        'total_serves': ['sa', 'serve att', 'serve attempts', 'serves', 'attempts', 'total serves', 's att', 'srv att'],
+        'ace_count': ['ace', 'aces', 'sa-ace', 'service aces'],
+        'error_count': ['se', 'serve err', 'serve errors', 'errors', 'service errors', 'err'],
+    }
+
+    @classmethod
+    def import_from_csv(cls, csv_text: str) -> Dict[str, dict]:
+        """
+        Parses a CSV export (e.g. copied/exported from GameChanger or a similar
+        stat-keeping app) into a player_profile-shaped dict of raw serve counts, ready
+        for get_optimal_strategy() -- after you fill in opp_perfect_pass_count /
+        opp_total_passes_observed, which serve-stat apps generally don't track (that's
+        opponent pass-quality charting -- a different data source, like film review or a
+        scouting tool such as DataVolley or Hudl).
+
+        Column headers are matched fuzzily against common naming conventions (see
+        _HEADER_ALIASES). Unmatched columns are ignored. Raises ValueError listing the
+        headers it found if player name / total serves / aces / errors can't be
+        identified, so you can see what needs remapping.
+
+        Returns each player's profile with opp_perfect_pass_count set to 0 and
+        opp_total_passes_observed set to (total - aces - errors) as an explicit
+        placeholder -- NOT a real estimate -- so the counts still sum correctly. Replace
+        these with real pass-quality data before trusting the recommendation.
+        """
+        reader = csv.DictReader(io.StringIO(csv_text))
+        if not reader.fieldnames:
+            raise ValueError("CSV appears to be empty or unreadable.")
+
+        normalized = {h.strip().lower(): h for h in reader.fieldnames}
+
+        def find_column(aliases):
+            for alias in aliases:
+                if alias in normalized:
+                    return normalized[alias]
+            return None
+
+        col_player = find_column(cls._HEADER_ALIASES['player'])
+        col_total = find_column(cls._HEADER_ALIASES['total_serves'])
+        col_ace = find_column(cls._HEADER_ALIASES['ace_count'])
+        col_err = find_column(cls._HEADER_ALIASES['error_count'])
+
+        missing = [name for name, col in [('player', col_player), ('total serves', col_total),
+                                           ('aces', col_ace), ('errors', col_err)] if col is None]
+        if missing:
+            raise ValueError(
+                f"Couldn't find columns for: {', '.join(missing)}. "
+                f"Detected headers were: {list(reader.fieldnames)}. "
+                f"Rename the relevant columns to something like 'Player', 'Serve Att', "
+                f"'Aces', 'Errors', or extend VolleyballMatchSimulator._HEADER_ALIASES."
+            )
+
+        profiles: Dict[str, dict] = {}
+        for row in reader:
+            name = (row.get(col_player) or "").strip()
+            if not name:
+                continue
+            try:
+                total = int(float(row[col_total]))
+                ace = int(float(row[col_ace]))
+                err = int(float(row[col_err]))
+            except (ValueError, TypeError):
+                continue
+            profiles[name] = {
+                "total_serves": total,
+                "ace_count": ace,
+                "error_count": err,
+                "opp_perfect_pass_count": 0,
+                "opp_total_passes_observed": max(0, total - ace - err),
+            }
+
+        if not profiles:
+            raise ValueError("No valid player rows found in the CSV.")
+        return profiles
 
     # ---- Validation scaffolding -----------------------------------------------------------
 
