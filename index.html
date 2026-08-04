@@ -222,13 +222,6 @@
                         <div class="input-group"><label>Topspin Error-Rate Increase at Max Pressure (%)</label><input type="number" id="press_amp_ts" value="15" min="0" max="100"></div>
                         <div class="input-group"><label>Float Error-Rate Increase at Max Pressure (%)</label><input type="number" id="press_amp_fl" value="0" min="0" max="100"></div>
                     </div>
-                    <p style="font-size:0.78rem; color:var(--text-muted); margin-top:12px; margin-bottom:8px;">
-                        Separate from the above: how conservative should the decision be about a serve type whose stats come from a <em>smaller sample</em>, as leverage rises? This doesn't assume execution gets worse under pressure (that's the two sliders above) — it's about trusting a less-certain estimate less when a wrong call costs more. 0 = ignore sample-size uncertainty entirely and always chase the raw point estimate.
-                    </p>
-                    <div class="input-group" style="max-width:340px;">
-                        <label>Risk Aversion Under Leverage (max std-errors discounted)</label>
-                        <input type="number" id="risk_z_max" value="1.0" min="0" max="3" step="0.1">
-                    </div>
                 </div>
 
                 <div class="column">
@@ -275,7 +268,7 @@
                 </div>
             </div>
 
-            <div class="section-title" id="policy-map-header" style="display:none;">Optimal Serving Policy Map & Risk-Adjusted Decision Margin (Topspin vs. Float)</div>
+            <div class="section-title" id="policy-map-header" style="display:none;">Optimal Serving Policy Map & Margin of Advantage (Topspin vs. Float)</div>
             <div class="heatmap-scroll" id="policy-map-container" style="display:none;">
                 <div class="legend">
                     <div class="legend-item"><div class="legend-color cell-ts-strong"></div><strong>TS Strong</strong> (Topspin Wins by &ge; 2% Equity)</div>
@@ -647,8 +640,7 @@
                     <p>Current Predicted Chance to Win Set: <strong style='color:#22c55e; font-size:1.4rem;'>${(data.resolved_equity * 100).toFixed(2)}%</strong></p>
 
                     <h4 style='margin-top:15px;'>Leverage / Pressure at This Score</h4>
-                    <p style='font-size:0.85rem; color:var(--text-muted);'>${(data.pressure_at_score * 100).toFixed(0)}% of max pressure — rises near set/match point and when the score is tight. This is what shifts the error rates below away from your season averages, and (separately) how much the decision below discounts a less-certain estimate.</p>
-                    ${data.risk_z_max > 0 ? `<p style='font-size:0.8rem; color:var(--text-muted);'>Risk aversion is set to ${data.risk_z_max.toFixed(1)} std-errors at max leverage — so at high-stakes scores, whichever serve type has the smaller sample gets penalized in the decision (not in the reported win %) more than at low-stakes scores. This can flip the recommendation even with 0% pressure-amplification set above, since it's driven by sample-size confidence, not assumed execution error.</p>` : `<p style='font-size:0.8rem; color:var(--text-muted);'>Risk aversion is set to 0 — decisions use the raw point estimate everywhere, regardless of sample size.</p>`}
+                    <p style='font-size:0.85rem; color:var(--text-muted);'>${(data.pressure_at_score * 100).toFixed(0)}% of max pressure — rises near set/match point and when the score is tight. This is what shifts the error rates below away from your season averages.</p>
 
                     <h4 style='margin-top:15px;'>Rally Win % Expectations (adjusted for pressure at this score)</h4>
                     <table style='margin-top:5px;'>
@@ -747,7 +739,7 @@
             hContainer.style.display = "block"; 
             
             hHeader.style.display = "block";
-            hHeader.innerHTML = `${serverName}'s Optimal Serving Policy Map & Risk-Adjusted Decision Margin (Topspin vs. Float)`;
+            hHeader.innerHTML = `${serverName}'s Optimal Serving Policy Map & Margin of Advantage (Topspin vs. Float)`;
             
             grid.style.gridTemplateColumns = `repeat(${deuceCap + 2}, 1fr)`;
             
@@ -901,8 +893,7 @@ class ProportionalInductionEngine:
                     v[i] *= scale
         return v
 
-    def solve_deuce_tail(self, ts_v: List[float], fl_v: List[float], ts_amp: float, fl_amp: float,
-                         se_ts: float, se_fl: float, risk_z_max: float) -> Dict[str, Any]:
+    def solve_deuce_tail(self, ts_v: List[float], fl_v: List[float], ts_amp: float, fl_amp: float) -> Dict[str, Any]:
         """
         Exact closed-form solution for the region beyond self.max_cap, replacing the old
         "just guess 0.5/1/0" boundary approximation.
@@ -910,12 +901,8 @@ class ProportionalInductionEngine:
         Once both scores are past SET_POINTS, pressure (see get_pressure) stops depending
         on the absolute score and depends only on the score DIFFERENCE d in {-1, 0, 1}
         (|d| >= 2 already ends the set). That makes the region a stationary Markov chain,
-        solvable exactly instead of approximated.
-
-        The action at each d is chosen using the RISK-ADJUSTED (lower-confidence-bound)
-        probabilities -- see solve_optimal_policy_map's docstring -- but the propagated
-        value uses the honest POINT-estimate probability for whichever action was chosen,
-        so reported win chances aren't systematically pessimistic.
+        solvable exactly instead of approximated. The action at each d is simply whichever
+        of topspin/float has the higher pressure-adjusted point-win probability there.
         """
         p_point: Dict[int, float] = {}
         p_ts_at: Dict[int, float] = {}
@@ -929,15 +916,13 @@ class ProportionalInductionEngine:
             p_fl_d = self.compute_rally_metrics(self.apply_pressure(fl_v, pressure_d, fl_amp))
             p_ts_at[d] = p_ts_d
             p_fl_at[d] = p_fl_d
-            p_ts_robust = max(0.0, p_ts_d - risk_z_max * pressure_d * se_ts)
-            p_fl_robust = max(0.0, p_fl_d - risk_z_max * pressure_d * se_fl)
-            if p_ts_robust >= p_fl_robust:
+            if p_ts_d >= p_fl_d:
                 action_at[d] = MAP_ACTION["TOPSPIN"]
                 p_point[d] = p_ts_d
             else:
                 action_at[d] = MAP_ACTION["FLOAT"]
                 p_point[d] = p_fl_d
-            delta_at[d] = p_ts_robust - p_fl_robust
+            delta_at[d] = p_ts_d - p_fl_d
 
         p_s = p_point
         p_r = self.our_sideout
@@ -965,28 +950,14 @@ class ProportionalInductionEngine:
             "p_fl_at": p_fl_at,
         }
 
-    def solve_optimal_policy_map(self, ts_v: List[float], fl_v: List[float], ts_amp: float, fl_amp: float,
-                                  ts_n: float = 0.0, fl_n: float = 0.0, risk_z_max: float = 0.0
+    def solve_optimal_policy_map(self, ts_v: List[float], fl_v: List[float], ts_amp: float, fl_amp: float
                                   ) -> Tuple[List[List[List[float]]], List[List[List[int]]], List[List[List[float]]], List[List[float]], List[List[float]]]:
         """
-        risk_z_max controls a SEPARATE mechanism from ts_amp/fl_amp (pressure-amplified
-        execution error). ts_amp/fl_amp model a real physical claim: serve mechanics get
-        worse under pressure. risk_z_max models something different and independent:
-        appropriately conservative decision-making under PARAMETER UNCERTAINTY -- an
-        estimate backed by fewer serves should be trusted less when a mistake is costlier,
-        the same idea behind lower-confidence-bound / pessimistic decision rules in robust
-        optimization and bandit algorithms.
-
-        Concretely: the action at each state is chosen using p_hat - risk_z_max*pressure*SE
-        (a leverage-scaled lower bound) instead of the raw point estimate p_hat, but the
-        VALUE actually propagated forward uses the honest point estimate for whichever
-        action was picked -- so the win probabilities this tool reports are never
-        artificially deflated, only the DECISION is made more conservative under stakes.
-
-        This means genuine score-dependent switching can happen even with ts_amp = fl_amp
-        = 0% (no assumed execution degradation at all), whenever risk_z_max > 0 and one
-        serve type's estimate is less certain than the other's -- which is the correct,
-        principled way to get that behavior, rather than an arbitrary tie-break rule.
+        At every score, picks whichever serve has the higher pressure-adjusted point-win
+        probability at THAT exact score (ts_amp/fl_amp let error rate climb under leverage
+        -- see get_pressure/apply_pressure). No hidden tie-break or smoothing: the action
+        with the higher probability wins, full stop, including at 0.0000001 margins that
+        only matter definitionally, not any positive epsilon carve-out.
         """
         dim: int = self.max_cap + 2
         v_grid: List[List[List[float]]] = [[[0.0] * 2 for _ in range(dim)] for _ in range(dim)]
@@ -996,19 +967,7 @@ class ProportionalInductionEngine:
         fl_rally_grid: List[List[float]] = [[0.0] * dim for _ in range(dim)]
         self.states_allocated = 0
 
-        # Approximate standard error of the aggregate point-win-probability estimate by
-        # treating it as a single binomial rate with n_eff = observed serves + the
-        # shrinkage pseudo-count "worth" of prior evidence. This ignores the covariance
-        # between the five underlying serve-outcome categories, so treat it as a
-        # reasonable order-of-magnitude approximation, not an exact variance calculation.
-        ts_rally_base = self.compute_rally_metrics(ts_v)
-        fl_rally_base = self.compute_rally_metrics(fl_v)
-        n_eff_ts = ts_n + SHRINKAGE_PSEUDO_COUNT
-        n_eff_fl = fl_n + SHRINKAGE_PSEUDO_COUNT
-        se_ts = ((ts_rally_base * (1 - ts_rally_base)) / n_eff_ts) ** 0.5 if n_eff_ts > 0 else 0.0
-        se_fl = ((fl_rally_base * (1 - fl_rally_base)) / n_eff_fl) ** 0.5 if n_eff_fl > 0 else 0.0
-
-        deuce_tail = self.solve_deuce_tail(ts_v, fl_v, ts_amp, fl_amp, se_ts, se_fl, risk_z_max)
+        deuce_tail = self.solve_deuce_tail(ts_v, fl_v, ts_amp, fl_amp)
 
         for u in range(dim):
             for t in range(dim):
@@ -1052,21 +1011,16 @@ class ProportionalInductionEngine:
                 v_our_next = v_grid[u_next][t][MAP_STATE["OUR_SERVE"]]
                 v_their_next = v_grid[u][t_next][MAP_STATE["THEIR_SERVE"]]
 
-                # Decision uses the risk-adjusted (lower-bound) probabilities...
-                p_ts_robust = max(0.0, p_win_ts - risk_z_max * pressure * se_ts)
-                p_fl_robust = max(0.0, p_win_fl - risk_z_max * pressure * se_fl)
-                equity_ts_robust = (p_ts_robust * v_our_next) + ((1.0 - p_ts_robust) * v_their_next)
-                equity_fl_robust = (p_fl_robust * v_our_next) + ((1.0 - p_fl_robust) * v_their_next)
-                delta_v_grid[u][t][MAP_STATE["OUR_SERVE"]] = equity_ts_robust - equity_fl_robust
+                equity_ts = (p_win_ts * v_our_next) + ((1.0 - p_win_ts) * v_their_next)
+                equity_fl = (p_win_fl * v_our_next) + ((1.0 - p_win_fl) * v_their_next)
+                delta_v_grid[u][t][MAP_STATE["OUR_SERVE"]] = equity_ts - equity_fl
 
-                # ...but the propagated value uses the honest point estimate for whichever
-                # action was chosen, so reported win probabilities aren't deflated.
-                if equity_ts_robust >= equity_fl_robust:
+                if equity_ts >= equity_fl:
                     policy_grid[u][t][MAP_STATE["OUR_SERVE"]] = MAP_ACTION["TOPSPIN"]
-                    v_grid[u][t][MAP_STATE["OUR_SERVE"]] = self.clamp_probability((p_win_ts * v_our_next) + ((1.0 - p_win_ts) * v_their_next))
+                    v_grid[u][t][MAP_STATE["OUR_SERVE"]] = self.clamp_probability(equity_ts)
                 else:
                     policy_grid[u][t][MAP_STATE["OUR_SERVE"]] = MAP_ACTION["FLOAT"]
-                    v_grid[u][t][MAP_STATE["OUR_SERVE"]] = self.clamp_probability((p_win_fl * v_our_next) + ((1.0 - p_win_fl) * v_their_next))
+                    v_grid[u][t][MAP_STATE["OUR_SERVE"]] = self.clamp_probability(equity_fl)
 
         return v_grid, policy_grid, delta_v_grid, ts_rally_grid, fl_rally_grid
 
@@ -1160,7 +1114,6 @@ def execute_optimization_sequence(event: Any) -> None:
 
         press_amp_ts_str = document.getElementById("press_amp_ts").value
         press_amp_fl_str = document.getElementById("press_amp_fl").value
-        risk_z_max_str = document.getElementById("risk_z_max").value
         
         score_us_str = document.getElementById("score_us").value
         score_them_str = document.getElementById("score_them").value
@@ -1178,8 +1131,7 @@ def execute_optimization_sequence(event: Any) -> None:
         "p_fl_poor": fl_poor_str, "p_fl_avg": fl_avg_str, "p_fl_perf": fl_perf_str,
         "opp_kill_poor": opp_poor_str, "opp_kill_average": opp_avg_str, 
         "opp_kill_perfect": opp_perf_str, "our_sideout_rate": our_so_str,
-        "press_amp_ts": press_amp_ts_str, "press_amp_fl": press_amp_fl_str,
-        "risk_z_max": risk_z_max_str
+        "press_amp_ts": press_amp_ts_str, "press_amp_fl": press_amp_fl_str
     }
     
     for key, val in inputs_map.items():
@@ -1232,13 +1184,6 @@ def execute_optimization_sequence(event: Any) -> None:
         press_amp_fl = max(0.0, float(press_amp_fl_str)) / 100.0
     except ValueError:
         err_box.innerText = "Type Error: Pressure sensitivity values must be clean numeric percentages."
-        err_box.style.display = "block"
-        btn.disabled = False; loader.style.display = "none"; return
-
-    try:
-        risk_z_max = max(0.0, float(risk_z_max_str))
-    except ValueError:
-        err_box.innerText = "Type Error: Risk aversion value must be a clean number."
         err_box.style.display = "block"
         btn.disabled = False; loader.style.display = "none"; return
 
@@ -1297,7 +1242,7 @@ def execute_optimization_sequence(event: Any) -> None:
     fl_rally_base: float = model.compute_rally_metrics(fl_v)
     
     t0: float = time.time()
-    v_grid, policy_grid, delta_v_grid, ts_rally_grid, fl_rally_grid = model.solve_optimal_policy_map(ts_v, fl_v, press_amp_ts, press_amp_fl, ts_n, fl_n, risk_z_max)
+    v_grid, policy_grid, delta_v_grid, ts_rally_grid, fl_rally_grid = model.solve_optimal_policy_map(ts_v, fl_v, press_amp_ts, press_amp_fl)
     resolved_equity: float = model.clamp_probability(v_grid[score_us][score_them][server_state])
     t_dp: float = (time.time() - t0) * 1000.0
 
@@ -1330,9 +1275,9 @@ def execute_optimization_sequence(event: Any) -> None:
                 if i != target_idx: v_mod[i] = max(0.0, v_mod[i] - step)
 
         if recommended_action == MAP_ACTION["TOPSPIN"]:
-            g, _, _, _, _ = model.solve_optimal_policy_map(v_mod, fl_v, press_amp_ts, press_amp_fl, ts_n, fl_n, risk_z_max)
+            g, _, _, _, _ = model.solve_optimal_policy_map(v_mod, fl_v, press_amp_ts, press_amp_fl)
         else:
-            g, _, _, _, _ = model.solve_optimal_policy_map(ts_v, v_mod, press_amp_ts, press_amp_fl, ts_n, fl_n, risk_z_max)
+            g, _, _, _, _ = model.solve_optimal_policy_map(ts_v, v_mod, press_amp_ts, press_amp_fl)
         return model.clamp_probability(g[score_us][score_them][server_state])
 
     for target in range(5):
@@ -1426,7 +1371,6 @@ def execute_optimization_sequence(event: Any) -> None:
         "fl_rally_raw_unshrunk": float(model.compute_rally_metrics(fl_v_raw)),
         "pressure_at_score": float(pressure_at_score),
         "press_amp_ts": float(press_amp_ts),
-        "risk_z_max": float(risk_z_max),
         "press_amp_fl": float(press_amp_fl),
         "sens_deltas": [float(x) for x in sens_deltas], 
         "sens_serve_label": sens_serve_label,
