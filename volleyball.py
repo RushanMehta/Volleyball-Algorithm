@@ -1,7 +1,6 @@
 import csv
 import io
-import csv
-import io
+import math
 from typing import Dict, Tuple, Optional, List
 
 
@@ -50,6 +49,16 @@ class VolleyballMatchSimulator:
         you haven't supplied real opponent-specific stats via opponent_stats=.
         'in_system': opponent kill percentage when they pass perfectly.
         'out_system': opponent kill percentage when forced into a poor pass.
+
+        IMPORTANT: these numbers are my own reasonable-sounding estimates, not figures
+        pulled from a cited dataset or published study. If this is going into anything
+        research-facing (a paper, a competition writeup, a claim to a reviewer), don't
+        present these as measured facts -- either cite a real source for them, replace
+        them with your own program's/league's historical data, or explicitly caveat them
+        as unvalidated placeholders. The right hierarchy, if you want this to be
+        defensible, is: actual opponent data (opponent_stats=) > your team's own
+        historical data against comparable opponents > these generic level/gender
+        placeholders, not the placeholders as a default source of truth.
         """
         transitions = {
             ('Pro', 'Boys'): {'in_system': 0.64, 'out_system': 0.38},
@@ -114,9 +123,16 @@ class VolleyballMatchSimulator:
         ace_count = serve_counts['ace_count']
         error_count = serve_counts['error_count']
 
+        if n < 0 or ace_count < 0 or error_count < 0:
+            raise ValueError(f"Counts can't be negative (got total_serves={n}, ace_count={ace_count}, error_count={error_count}).")
+        if ace_count + error_count > n:
+            raise ValueError(f"ace_count + error_count ({ace_count + error_count}) exceeds total_serves ({n}) -- can't have more aces and errors than serves.")
+
         pass_data_available = 'opp_perfect_pass_count' in serve_counts
         pass_successes = serve_counts.get('opp_perfect_pass_count', 0)
         pass_n = serve_counts.get('opp_total_passes_observed', n) if pass_data_available else 0
+        if pass_data_available and (pass_successes < 0 or pass_n < 0 or pass_successes > pass_n):
+            raise ValueError(f"opp_perfect_pass_count ({pass_successes}) must be between 0 and opp_total_passes_observed ({pass_n}).")
 
         ace_rate = cls._shrink(ace_count, n, cls.PRIOR_ACE_RATE, cls.SHRINKAGE_PSEUDO_COUNT)
         error_rate = cls._shrink(error_count, n, cls.PRIOR_ERROR_RATE, cls.SHRINKAGE_PSEUDO_COUNT)
@@ -134,127 +150,6 @@ class VolleyballMatchSimulator:
             'error_rate_95ci': cls._wilson_bounds(error_count, n),
         }
 
-    # ---- Importing stats from tracking apps (GameChanger, etc.) -----------------------
-
-    # Column-header aliases to try to auto-match against a CSV's header row. Case- and
-    # whitespace-insensitive, substring match. NOTE: I don't have a confirmed sample of
-    # GameChanger's actual volleyball export column names (their docs describe the stats
-    # tracked -- service attempts, aces, errors -- but not the literal CSV headers), so
-    # this is a best-effort fuzzy matcher, not a guaranteed-exact GameChanger parser. It's
-    # written broadly enough to also catch similarly-named exports from other stat apps
-    # (Hudl, VolleyMetrics, MaxPreps, hand-built spreadsheets, etc.). Always check the
-    # printed column mapping against your file, and use column_map= to override anything
-    # it gets wrong.
-    _PLAYER_ALIASES = ["player", "name", "athlete"]
-    _ATTEMPTS_ALIASES = ["serve att", "service att", "sa", "attempts", "total serves", "serves"]
-    _ACE_ALIASES = ["ace"]
-    _ERROR_ALIASES = ["serve err", "service err", "se", "errors", "err"]
-
-    @classmethod
-    def _match_column(cls, headers: List[str], aliases: List[str]) -> Optional[str]:
-        normalized = {h: h.strip().lower() for h in headers}
-        # Prefer exact matches first, then substring matches, so e.g. "SA" doesn't
-        # accidentally grab a column like "Sac Flies" -- exact alias match wins.
-        for h, norm in normalized.items():
-            if norm in aliases:
-                return h
-        for h, norm in normalized.items():
-            if any(alias in norm for alias in aliases):
-                return h
-        return None
-
-    @classmethod
-    def import_gamechanger_csv(cls, filepath_or_text: str, is_text: bool = False,
-                                player_filter: Optional[str] = None,
-                                column_map: Optional[Dict[str, str]] = None) -> Dict[str, dict]:
-        """
-        Imports per-player serve counts (attempts, aces, errors) from a CSV export --
-        built primarily with GameChanger's volleyball "Export Stats" file in mind, but
-        works with any CSV that has a player column plus serve attempts/aces/errors
-        columns under roughly those names.
-
-        IMPORTANT LIMITATION: GameChanger's volleyball stat tracking (as documented)
-        covers service attempts, aces, and errors -- it does not appear to track *pass
-        quality forced on the opponent* (poor/average/perfect pass rates), which this
-        model also wants. Imported profiles will therefore have real ace/error/attempt
-        counts but NO pass-quality data. That's handled correctly (see the shrinkage fix
-        above) by falling back entirely to the model's prior for that piece, rather than
-        wrongly assuming "we observed zero good passes." If you separately chart pass
-        quality, add 'opp_perfect_pass_count' / 'opp_total_passes_observed' to the
-        returned dict for a given player before calling get_optimal_strategy.
-
-        Also note: most stat-tracking apps (including GameChanger, as far as I can tell)
-        record serves in aggregate -- they don't tag each serve as "topspin" vs "float"
-        the way this tool's own dashboard does. So an import gives you one combined serve
-        profile per player, not a pre-split topspin/float pair. If you track serve type
-        yourself, you'll still need to split those counts by hand.
-
-        filepath_or_text: path to the CSV file, or the raw CSV text itself if is_text=True.
-        player_filter: if given, only rows whose player column contains this substring
-            (case-insensitive) are included; otherwise every player row found is returned.
-        column_map: optional explicit override, e.g.
-            {'player': 'Player Name', 'attempts': 'SA', 'ace': 'Ace', 'error': 'SE'}
-            for any column the auto-matcher gets wrong.
-
-        Returns: {player_name: {"total_serves": int, "ace_count": int, "error_count": int}}
-        plus a special "_column_mapping_used" key describing what was auto-detected, so
-        you can sanity-check it against your actual file.
-        """
-        text = filepath_or_text if is_text else open(filepath_or_text, newline='', encoding='utf-8-sig').read()
-        reader = csv.DictReader(io.StringIO(text))
-        headers = reader.fieldnames or []
-        if not headers:
-            raise ValueError("No header row detected -- is this actually a CSV export?")
-
-        column_map = column_map or {}
-        player_col = column_map.get('player') or cls._match_column(headers, cls._PLAYER_ALIASES)
-        attempts_col = column_map.get('attempts') or cls._match_column(headers, cls._ATTEMPTS_ALIASES)
-        ace_col = column_map.get('ace') or cls._match_column(headers, cls._ACE_ALIASES)
-        error_col = column_map.get('error') or cls._match_column(headers, cls._ERROR_ALIASES)
-
-        missing = [name for name, col in
-                   [("player", player_col), ("serve attempts", attempts_col),
-                    ("aces", ace_col), ("errors", error_col)] if col is None]
-        if missing:
-            raise ValueError(
-                f"Couldn't auto-detect column(s) for: {', '.join(missing)}. "
-                f"Headers found in the file were: {headers}. "
-                f"Pass column_map={{'player': ..., 'attempts': ..., 'ace': ..., 'error': ...}} "
-                f"to specify them manually."
-            )
-
-        players: Dict[str, dict] = {}
-        for row in reader:
-            name = (row.get(player_col) or "").strip()
-            if not name:
-                continue
-            if player_filter and player_filter.lower() not in name.lower():
-                continue
-
-            def _to_int(val):
-                try:
-                    return int(float(str(val).strip() or 0))
-                except (ValueError, TypeError):
-                    return 0
-
-            attempts = _to_int(row.get(attempts_col))
-            aces = _to_int(row.get(ace_col))
-            errors = _to_int(row.get(error_col))
-
-            if name not in players:
-                players[name] = {"total_serves": 0, "ace_count": 0, "error_count": 0}
-            players[name]["total_serves"] += attempts
-            players[name]["ace_count"] += aces
-            players[name]["error_count"] += errors
-
-        players["_column_mapping_used"] = {
-            "player": player_col, "attempts": attempts_col, "ace": ace_col, "error": error_col,
-            "note": "Double-check these against your file's actual headers. No pass-quality "
-                    "data was imported (see method docstring) -- the model will fall back to "
-                    "its prior for opponent pass quality until you supply that separately."
-        }
-        return players
-
     def calculate_point_win_probability(self, serve_stats: dict) -> float:
         """
         Calculates the probability that the serving team wins the rally,
@@ -264,12 +159,19 @@ class VolleyballMatchSimulator:
         """
         p_ace = serve_stats['ace_rate']
         p_error = serve_stats['error_rate']
+        p_perfect_pass = serve_stats['opp_perfect_pass_rate']
+
+        for label, val in [('ace_rate', p_ace), ('error_rate', p_error), ('opp_perfect_pass_rate', p_perfect_pass)]:
+            if not (0.0 <= val <= 1.0):
+                raise ValueError(f"{label} must be between 0 and 1 (got {val}).")
+        if p_ace + p_error > 1.0:
+            raise ValueError(f"ace_rate + error_rate ({p_ace + p_error}) can't exceed 1.0.")
+
         p_in = 1.0 - (p_ace + p_error)
 
         if p_in <= 0:
             return p_ace
 
-        p_perfect_pass = serve_stats['opp_perfect_pass_rate']
         opp_kill_in_sys = self.base_rates['in_system']
         opp_kill_out_sys = self.base_rates['out_system']
 
@@ -443,101 +345,164 @@ class VolleyballMatchSimulator:
                 max_set_win_prob = p_set
                 best_strategy = strategy_name
 
+        # Don't let a low-confidence strategy silently win just because its point
+        # estimate happens to be highest -- surface it instead of hiding it. Still report
+        # the point-estimate winner as the top pick (unreliable-but-real information beats
+        # no information), but flag it plainly, and note whenever a more-reliable
+        # alternative was close behind so the coach can weigh that tradeoff themselves.
+        best_metrics = strategy_analysis[best_strategy]
+        recommendation_caveat = None
+        if best_metrics["low_confidence"]:
+            runner_up = max(
+                (name for name in strategy_analysis if name != best_strategy),
+                key=lambda name: strategy_analysis[name]["set_win_expectancy"],
+                default=None,
+            )
+            if runner_up is not None:
+                runner_up_metrics = strategy_analysis[runner_up]
+                gap = best_metrics["set_win_expectancy"] - runner_up_metrics["set_win_expectancy"]
+                recommendation_caveat = (
+                    f"'{best_strategy}' is only backed by {best_metrics['sample_size']} serves "
+                    f"(below the {min_reliable_sample}-serve threshold), so its "
+                    f"{best_metrics['set_win_expectancy']*100:.1f}% estimate is uncertain. "
+                    f"'{runner_up}' is backed by {runner_up_metrics['sample_size'] if runner_up_metrics['sample_size'] is not None else 'a fixed'} "
+                    f"serves at {runner_up_metrics['set_win_expectancy']*100:.1f}%"
+                    f"{' (a more reliable near-equal option)' if gap < 0.05 else ' (a more reliable but clearly lower option)'}."
+                )
+            else:
+                recommendation_caveat = (
+                    f"'{best_strategy}' is only backed by {best_metrics['sample_size']} serves "
+                    f"(below the {min_reliable_sample}-serve threshold) -- treat this recommendation cautiously "
+                    f"until more serves are logged."
+                )
+
         return {
             "current_score": current_score,
             "recommended_strategy": best_strategy,
+            "recommendation_caveat": recommendation_caveat,
             "projected_set_win_probability": round(max_set_win_prob * 100, 1),
             "any_low_confidence": any(v["low_confidence"] for v in strategy_analysis.values()),
             "full_analysis": strategy_analysis
         }
 
-    # ---- CSV import from stat-keeping apps -------------------------------------------------
+    # ---- Importing stats from CSV stat exports -----------------------------------------
 
-    # Fuzzy header aliases for common volleyball serve-stat exports. Note: as of this
-    # writing, GameChanger's own documentation confirms a season-stats CSV export for
-    # baseball/softball/basketball specifically, but does not document a fixed CSV export
-    # schema for volleyball -- volleyball box scores (attempts/aces/errors) exist in-app,
-    # but the exact exported column names aren't something I can verify without a sample
-    # file. This matcher works on wording common to volleyball box scores generally
-    # (GameChanger included, if you're able to export or copy one), rather than assuming
-    # one exact schema. If a file doesn't match, the error message lists the headers it
-    # found so you can extend _HEADER_ALIASES or map columns by hand.
-    _HEADER_ALIASES = {
-        'player': ['player', 'name', 'player name', 'athlete'],
-        'total_serves': ['sa', 'serve att', 'serve attempts', 'serves', 'attempts', 'total serves', 's att', 'srv att'],
-        'ace_count': ['ace', 'aces', 'sa-ace', 'service aces'],
-        'error_count': ['se', 'serve err', 'serve errors', 'errors', 'service errors', 'err'],
-    }
+    # Column-header aliases to try to auto-match against a CSV's header row. Case- and
+    # whitespace-insensitive, substring match. NOTE: I don't have a confirmed sample of
+    # any specific app's exact volleyball export column names, so this is a best-effort
+    # fuzzy matcher for common volleyball stat-export wording generally, not a guaranteed
+    # parser for one particular app. Always check the printed column mapping against your
+    # file, and use column_map= to override anything it gets wrong.
+    _PLAYER_ALIASES = ["player", "name", "athlete"]
+    _ATTEMPTS_ALIASES = ["serve att", "service att", "sa", "attempts", "total serves", "serves"]
+    _ACE_ALIASES = ["ace"]
+    _ERROR_ALIASES = ["serve err", "service err", "se", "errors", "err"]
 
     @classmethod
-    def import_from_csv(cls, csv_text: str) -> Dict[str, dict]:
+    def _match_column(cls, headers: List[str], aliases: List[str]) -> Optional[str]:
+        normalized = {h: h.strip().lower() for h in headers}
+        # Prefer exact matches first, then substring matches, so e.g. "SA" doesn't
+        # accidentally grab a column like "Sac Flies" -- exact alias match wins.
+        for h, norm in normalized.items():
+            if norm in aliases:
+                return h
+        for h, norm in normalized.items():
+            if any(alias in norm for alias in aliases):
+                return h
+        return None
+
+    @classmethod
+    def import_from_csv(cls, filepath_or_text: str, is_text: bool = False,
+                         player_filter: Optional[str] = None,
+                         column_map: Optional[Dict[str, str]] = None) -> Dict[str, dict]:
         """
-        Parses a CSV export (e.g. copied/exported from GameChanger or a similar
-        stat-keeping app) into a player_profile-shaped dict of raw serve counts, ready
-        for get_optimal_strategy() -- after you fill in opp_perfect_pass_count /
-        opp_total_passes_observed, which serve-stat apps generally don't track (that's
-        opponent pass-quality charting -- a different data source, like film review or a
-        scouting tool such as DataVolley or Hudl).
+        Imports per-player serve counts (attempts, aces, errors) from a CSV export.
+        Should work with exports from GameChanger and similar stat-keeping apps that use
+        roughly-standard column names, but isn't a verified parser for any one app's exact
+        schema -- treat it as "CSV stat import with fuzzy column matching," not a
+        guaranteed integration.
 
-        Column headers are matched fuzzily against common naming conventions (see
-        _HEADER_ALIASES). Unmatched columns are ignored. Raises ValueError listing the
-        headers it found if player name / total serves / aces / errors can't be
-        identified, so you can see what needs remapping.
+        IMPORTANT LIMITATION: common stat-tracking apps track service attempts, aces, and
+        errors -- they generally don't track *pass quality forced on the opponent*
+        (poor/average/perfect pass rates), which this model also wants. Imported profiles
+        will therefore have real ace/error/attempt counts but NO pass-quality data.
+        That's handled correctly (see estimate_serve_rates) by falling back entirely to
+        the model's prior for that piece, rather than wrongly assuming "we observed zero
+        good passes." If you separately chart pass quality, add 'opp_perfect_pass_count'
+        / 'opp_total_passes_observed' to the returned dict for a given player before
+        calling get_optimal_strategy.
 
-        Returns each player's profile with opp_perfect_pass_count set to 0 and
-        opp_total_passes_observed set to (total - aces - errors) as an explicit
-        placeholder -- NOT a real estimate -- so the counts still sum correctly. Replace
-        these with real pass-quality data before trusting the recommendation.
+        Also note: most stat-tracking apps record serves in aggregate -- they don't tag
+        each serve as "topspin" vs "float" the way this tool's own dashboard does. So an
+        import gives you one combined serve profile per player, not a pre-split
+        topspin/float pair. If you track serve type yourself, you'll still need to split
+        those counts by hand.
+
+        filepath_or_text: path to the CSV file, or the raw CSV text itself if is_text=True.
+        player_filter: if given, only rows whose player column contains this substring
+            (case-insensitive) are included; otherwise every player row found is returned.
+        column_map: optional explicit override, e.g.
+            {'player': 'Player Name', 'attempts': 'SA', 'ace': 'Ace', 'error': 'SE'}
+            for any column the auto-matcher gets wrong.
+
+        Returns: {player_name: {"total_serves": int, "ace_count": int, "error_count": int}}
+        plus a special "_column_mapping_used" key describing what was auto-detected, so
+        you can sanity-check it against your actual file.
         """
-        reader = csv.DictReader(io.StringIO(csv_text))
-        if not reader.fieldnames:
-            raise ValueError("CSV appears to be empty or unreadable.")
+        text = filepath_or_text if is_text else open(filepath_or_text, newline='', encoding='utf-8-sig').read()
+        reader = csv.DictReader(io.StringIO(text))
+        headers = reader.fieldnames or []
+        if not headers:
+            raise ValueError("No header row detected -- is this actually a CSV export?")
 
-        normalized = {h.strip().lower(): h for h in reader.fieldnames}
+        column_map = column_map or {}
+        player_col = column_map.get('player') or cls._match_column(headers, cls._PLAYER_ALIASES)
+        attempts_col = column_map.get('attempts') or cls._match_column(headers, cls._ATTEMPTS_ALIASES)
+        ace_col = column_map.get('ace') or cls._match_column(headers, cls._ACE_ALIASES)
+        error_col = column_map.get('error') or cls._match_column(headers, cls._ERROR_ALIASES)
 
-        def find_column(aliases):
-            for alias in aliases:
-                if alias in normalized:
-                    return normalized[alias]
-            return None
-
-        col_player = find_column(cls._HEADER_ALIASES['player'])
-        col_total = find_column(cls._HEADER_ALIASES['total_serves'])
-        col_ace = find_column(cls._HEADER_ALIASES['ace_count'])
-        col_err = find_column(cls._HEADER_ALIASES['error_count'])
-
-        missing = [name for name, col in [('player', col_player), ('total serves', col_total),
-                                           ('aces', col_ace), ('errors', col_err)] if col is None]
+        missing = [name for name, col in
+                   [("player", player_col), ("serve attempts", attempts_col),
+                    ("aces", ace_col), ("errors", error_col)] if col is None]
         if missing:
             raise ValueError(
-                f"Couldn't find columns for: {', '.join(missing)}. "
-                f"Detected headers were: {list(reader.fieldnames)}. "
-                f"Rename the relevant columns to something like 'Player', 'Serve Att', "
-                f"'Aces', 'Errors', or extend VolleyballMatchSimulator._HEADER_ALIASES."
+                f"Couldn't auto-detect column(s) for: {', '.join(missing)}. "
+                f"Headers found in the file were: {headers}. "
+                f"Pass column_map={{'player': ..., 'attempts': ..., 'ace': ..., 'error': ...}} "
+                f"to specify them manually."
             )
 
-        profiles: Dict[str, dict] = {}
+        players: Dict[str, dict] = {}
         for row in reader:
-            name = (row.get(col_player) or "").strip()
+            name = (row.get(player_col) or "").strip()
             if not name:
                 continue
-            try:
-                total = int(float(row[col_total]))
-                ace = int(float(row[col_ace]))
-                err = int(float(row[col_err]))
-            except (ValueError, TypeError):
+            if player_filter and player_filter.lower() not in name.lower():
                 continue
-            profiles[name] = {
-                "total_serves": total,
-                "ace_count": ace,
-                "error_count": err,
-                "opp_perfect_pass_count": 0,
-                "opp_total_passes_observed": max(0, total - ace - err),
-            }
 
-        if not profiles:
-            raise ValueError("No valid player rows found in the CSV.")
-        return profiles
+            def _to_int(val):
+                try:
+                    return int(float(str(val).strip() or 0))
+                except (ValueError, TypeError):
+                    return 0
+
+            attempts = _to_int(row.get(attempts_col))
+            aces = _to_int(row.get(ace_col))
+            errors = _to_int(row.get(error_col))
+
+            if name not in players:
+                players[name] = {"total_serves": 0, "ace_count": 0, "error_count": 0}
+            players[name]["total_serves"] += attempts
+            players[name]["ace_count"] += aces
+            players[name]["error_count"] += errors
+
+        players["_column_mapping_used"] = {
+            "player": player_col, "attempts": attempts_col, "ace": ace_col, "error": error_col,
+            "note": "Double-check these against your file's actual headers. No pass-quality "
+                    "data was imported (see method docstring) -- the model will fall back to "
+                    "its prior for opponent pass quality until you supply that separately."
+        }
+        return players
 
     # ---- Validation scaffolding -----------------------------------------------------------
 
@@ -557,20 +522,45 @@ class VolleyballMatchSimulator:
             p_win_serve, p_win_receive (float, the rates that were actually in effect),
             observed_winner ('us' or 'them')  -- who actually won that set
 
-        Returns overall accuracy plus a per-record breakdown so you can see where the
-        model agrees or disagrees with what actually happened.
+        Returns several metrics, not just accuracy, because a probability model that's
+        always "51% confident and right" is very different from one that's "99% confident
+        and right" -- accuracy alone treats those identically:
+          - accuracy: fraction of records where the >=50% side actually won. Coarse; a
+            model can have great accuracy while being badly miscalibrated (e.g.
+            overconfident 90%+ calls that only pan out 70% of the time).
+          - brier_score: mean squared error between predicted probability and outcome
+            (0/1). Lower is better; 0 is a perfect probabilistic prediction, 0.25 is what
+            you'd get always guessing 50%.
+          - log_loss: mean negative log-likelihood of the observed outcome under the
+            predicted probability. Lower is better; penalizes confident-and-wrong
+            predictions much more harshly than accuracy does.
+          - calibration_buckets: predictions grouped into probability deciles, each
+            showing the average predicted probability vs. the actual observed win rate in
+            that bucket. A well-calibrated model has these track closely; "predicted ~70%,
+            actually won 40% of the time" is a real problem accuracy alone would hide.
+            Needs a reasonable number of records per bucket to be meaningful -- with only
+            a handful of records this will be noisy, not damning.
         """
         if not records:
             raise ValueError("No records supplied -- validate_against_recorded_sets needs real match data.")
 
         breakdown = []
         correct = 0
+        brier_sum = 0.0
+        log_loss_sum = 0.0
+        eps = 1e-9  # avoid log(0) on a maximally-confident-and-wrong prediction
         for r in records:
             predicted_prob = simulator.compute_set_win_expectancy(
                 r['score_us'], r['score_them'], r['serving'], r['p_win_serve'], r['p_win_receive'])
             predicted_winner = "us" if predicted_prob >= 0.5 else "them"
+            outcome = 1.0 if r['observed_winner'] == "us" else 0.0
             is_correct = predicted_winner == r['observed_winner']
             correct += int(is_correct)
+
+            brier_sum += (predicted_prob - outcome) ** 2
+            p_clamped = min(max(predicted_prob, eps), 1 - eps)
+            log_loss_sum += -(outcome * math.log(p_clamped) + (1 - outcome) * math.log(1 - p_clamped))
+
             breakdown.append({
                 **r,
                 "predicted_win_prob": round(predicted_prob, 3),
@@ -578,9 +568,33 @@ class VolleyballMatchSimulator:
                 "correct": is_correct,
             })
 
+        n = len(records)
+
+        # Calibration: bucket by predicted probability decile, compare average prediction
+        # to actual observed win rate in that bucket.
+        buckets: Dict[int, List[dict]] = {}
+        for rec in breakdown:
+            bucket_idx = min(9, int(rec["predicted_win_prob"] * 10))
+            buckets.setdefault(bucket_idx, []).append(rec)
+        calibration_buckets = []
+        for idx in sorted(buckets):
+            group = buckets[idx]
+            avg_predicted = sum(g["predicted_win_prob"] for g in group) / len(group)
+            actual_rate = sum(1.0 if g["observed_winner"] == "us" else 0.0 for g in group) / len(group)
+            calibration_buckets.append({
+                "predicted_range": f"{idx*10}-{idx*10+10}%",
+                "n": len(group),
+                "avg_predicted": round(avg_predicted, 3),
+                "actual_win_rate": round(actual_rate, 3),
+            })
+
         return {
-            "n_records": len(records),
-            "accuracy": round(correct / len(records), 3),
+            "n_records": n,
+            "accuracy": round(correct / n, 3),
+            "brier_score": round(brier_sum / n, 4),
+            "log_loss": round(log_loss_sum / n, 4),
+            "calibration_buckets": calibration_buckets,
+            "calibration_note": "Buckets with very few records are noisy -- don't over-read a single small bucket." if n < 100 else None,
             "breakdown": breakdown,
         }
 
