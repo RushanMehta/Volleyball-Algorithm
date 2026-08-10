@@ -132,7 +132,7 @@
 
     <div class="container">
         <h1>Coaches' Serve Optimization Assistant</h1>
-        <div class="subtitle">Smart Match Planning & Decision Engine for High School and Club Volleyball</div>
+        <div class="subtitle">Smart Match Planning & Decision Engine for All Levels of Volleyball</div>
         
         <div class="tab-container">
             <button class="tab active" onclick="switchTab(event, 'tab-engine')">Interactive Dashboard</button>
@@ -205,6 +205,9 @@
                     </div>
 
                     <div class="section-title">2. Opponent Performance Stats</div>
+                    <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:8px;">
+                        Works for High School, Club, College, or Pro — enter what you've actually observed of this opponent below rather than a generic level assumption, and the model adapts automatically.
+                    </p>
                     <div class="grid-2">
                         <div class="input-group"><label>Opponent Attack Win % on a POOR pass</label><input type="number" id="opp_kill_poor" value="38" min="0" max="100"></div>
                         <div class="input-group"><label>Opponent Attack Win % on an AVERAGE pass</label><input type="number" id="opp_kill_average" value="48" min="0" max="100"></div>
@@ -291,9 +294,6 @@
                 <p style="color:var(--text-muted)">Perform an evaluation calculation on the dashboard to output comparison charts.</p>
             </div>
         </div>
-        <!-- This tool applies to any level of play -- High School, Club, College, or Pro -- since opponent
-             attack efficiency (poor/average/perfect-pass kill %) is entered directly from what you observe,
-             rather than assumed from a fixed level/gender table. -->
 
         <div id="tab-model-details" class="tab-content">
             <div class="section-title">How the Math and Predictions Work</div>
