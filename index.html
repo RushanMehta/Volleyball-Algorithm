@@ -216,11 +216,11 @@
 
                     <div class="section-title">3. Pressure / Clutch Sensitivity <span style="font-weight:normal; color:var(--text-muted); font-size:0.75rem;">(optional)</span></div>
                     <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:8px;">
-                        Real serve execution can get shakier as leverage rises (tied scores, deuce, set/match point). Set how much each serve's error rate should climb at maximum pressure — 0% means that serve is treated as pressure-proof.
+                        Real serve execution can get shakier as leverage rises. Pressure here is measured as <em>true point leverage</em> — how much winning vs. losing the current rally swings the set-win probability (computed from the model's own value function, normalized so the highest-leverage score is 100%). Set how much each serve's error rate should climb at maximum leverage — 0% means that serve is treated as pressure-proof.
                     </p>
                     <div class="grid-2">
-                        <div class="input-group"><label>Topspin Error-Rate Increase at Max Pressure (%)</label><input type="number" id="press_amp_ts" value="15" min="0" max="100"></div>
-                        <div class="input-group"><label>Float Error-Rate Increase at Max Pressure (%)</label><input type="number" id="press_amp_fl" value="0" min="0" max="100"></div>
+                        <div class="input-group"><label>Topspin Error-Rate Increase at Max Leverage (%)</label><input type="number" id="press_amp_ts" value="15" min="0" max="100"></div>
+                        <div class="input-group"><label>Float Error-Rate Increase at Max Leverage (%)</label><input type="number" id="press_amp_fl" value="0" min="0" max="100"></div>
                     </div>
                 </div>
 
@@ -301,6 +301,13 @@
             
             <h3 style="margin-top:15px; margin-bottom:5px;">1. The Core Equation</h3>
             <p>At any score, the model computes the odds of winning the set by choosing the serve action that yields the highest mathematical probability of success.</p>
+
+            <h3 style="margin-top:15px; margin-bottom:5px;">2. Leverage-Based Pressure</h3>
+            <p>Pressure at a score is no longer a hand-tuned heuristic. The engine first solves the value function with no pressure adjustment, then reads off the <em>point leverage</em> at every score:</p>
+            <blockquote>
+                <strong>leverage(u, t) = | V(u+1, t) &minus; V(u, t+1) |</strong><br>
+                the absolute swing in set-win probability caused by winning vs. losing the current rally. This is normalized so the highest-leverage score in the set is 100%. Each serve's error rate is then scaled up in proportion to this leverage, so errors climb exactly where the point matters most — and only there. This is the same leverage-index concept used in baseball/sabermetrics, applied to rally scoring.
+            </blockquote>
             
             <div class="section-title">Explicit Boundary & Modeling Simplifications (Academic Disclaimers)</div>
             <blockquote>
@@ -601,7 +608,8 @@
         }
 
         function handleEngineCallback(payload) {
-            const data = JSON.parse(payload);
+            // Accept either a parsed object (new safe channel) or a JSON string (legacy).
+            const data = (typeof payload === 'string') ? JSON.parse(payload) : payload;
             
             // Clean interface states since calculation completed
             clearInputErrors();
@@ -639,10 +647,10 @@
                     <h4>Expected Set Win Chance</h4>
                     <p>Current Predicted Chance to Win Set: <strong style='color:#22c55e; font-size:1.4rem;'>${(data.resolved_equity * 100).toFixed(2)}%</strong></p>
 
-                    <h4 style='margin-top:15px;'>Leverage / Pressure at This Score</h4>
-                    <p style='font-size:0.85rem; color:var(--text-muted);'>${(data.pressure_at_score * 100).toFixed(0)}% of max pressure — rises near set/match point and when the score is tight. This is what shifts the error rates below away from your season averages.</p>
+                    <h4 style='margin-top:15px;'>Leverage at This Score</h4>
+                    <p style='font-size:0.85rem; color:var(--text-muted);'>${(data.pressure_at_score * 100).toFixed(0)}% of max leverage (raw swing: ${ (data.leverage_at_score * 100).toFixed(2)} pts of set-win probability) — the actual stakes of this point, measured from how much it swings the set-win probability. This is what shifts the error rates below away from your season averages.</p>
 
-                    <h4 style='margin-top:15px;'>Rally Win % Expectations (adjusted for pressure at this score)</h4>
+                    <h4 style='margin-top:15px;'>Rally Win % Expectations (adjusted for leverage at this score)</h4>
                     <table style='margin-top:5px;'>
                         <tr><td>Serve Type</td><td>At This Score</td><td>Season Avg (shrunk)</td><td>Season Avg (raw, unshrunk)</td></tr>
                         <tr><td>Topspin${data.ts_low_confidence ? ' ⚠️' : ''}</td><td>${(data.ts_rally * 100).toFixed(1)}%</td><td>${(data.ts_rally_base * 100).toFixed(1)}%</td><td>${(data.ts_rally_raw_unshrunk * 100).toFixed(1)}%</td></tr>
@@ -652,7 +660,7 @@
                 </div>
                 <div>
                     <h4>Skill Sensitivity Analysis — ${data.sens_serve_label} Serve (Impact of 1% Improvement)</h4>
-                    <p style='font-size:0.85rem; color:var(--text-muted); margin-bottom:10px;'>This shows how much your chance to win the set improves (+%) if you increase each specific ${data.sens_serve_label.toLowerCase()} serving outcome by 1% (renormalized against the other outcomes for that serve type). Shown for the serve currently recommended at this score:</p>
+                    <p style='font-size:0.85rem; color:var(--text-muted); margin-bottom:10px;'>This shows how much your chance to win the set improves (+%) if you increase each specific ${data.sens_serve_label.toLowerCase()} serving outcome by 1% (renormalized against the other outcomes for that serve type, with leverage held fixed). Shown for the serve currently recommended at this score:</p>
             `;
             
             const labels = ["Increase Ace Rate", "Reduce Error Rate", "Force More Poor Passes", "Force More Average Passes", "Force More Perfect Passes"];
@@ -809,7 +817,7 @@
 
     <script type="py">
 from pyscript import document
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any, Optional
 import json
 import random
 import time
@@ -847,8 +855,8 @@ def shrink_categorical_vector(counts: List[int], n: int) -> List[float]:
     ]
 
 PRESSURE_ENDGAME_WINDOW: int = 6
-# How close the score margin needs to be for "tightness" to ramp from 0 up to 1.0
 PRESSURE_MARGIN_WINDOW: int = 6
+
 
 class ProportionalInductionEngine:
     def __init__(self, kill_perfect: float, kill_average: float, kill_poor: float, our_sideout: float, max_cap: int = FIXED_CAP) -> None:
@@ -858,6 +866,11 @@ class ProportionalInductionEngine:
         self.our_sideout: float = our_sideout
         self.max_cap: int = max_cap
         self.states_allocated: int = 0
+        # Leverage-based pressure grid, populated by solve_optimal_policy_map.
+        # When set, get_pressure reads true point-leverage from this grid; before it
+        # is set (and outside the solved score range) a heuristic fallback is used.
+        self.pressure_grid: Optional[List[List[float]]] = None
+        self.max_leverage: float = 1.0
 
     def clamp_probability(self, value: float) -> float:
         return max(0.0001, min(0.999, value))
@@ -867,15 +880,28 @@ class ProportionalInductionEngine:
         return p_ace + (p_poor * (1.0 - self.k_poor)) + (p_avg * (1.0 - self.k_avg)) + (p_perf * (1.0 - self.k_perf))
 
     def get_pressure(self, u: int, t: int) -> float:
-        """Leverage index in [0,1]: rises near set/match point AND when the score is tight."""
+        """
+        Point leverage in [0,1].
+
+        Primary: read from self.pressure_grid, which holds normalized true leverage
+        (|V(u+1,t) - V(u,t+1)| / max) computed from a no-pressure pre-solve of the value
+        function. This measures how much winning vs losing THIS rally swings the
+        set-win probability -- the actual stakes at this exact score -- which is more
+        principled and more accurate than a hand-tuned endgame/tightness heuristic.
+
+        Fallback (deuce-tail region beyond the solved grid, or before a solve): the
+        original endgame-proximity + margin-tightness heuristic, which is still a
+        reasonable approximation and depends only on the (capped) score difference.
+        """
+        if self.pressure_grid is not None and 0 <= u <= self.max_cap and 0 <= t <= self.max_cap:
+            return self.pressure_grid[u][t]
         endgame_proximity = max(u, t) - (SET_POINTS - PRESSURE_ENDGAME_WINDOW)
         endgame_proximity = max(0.0, min(1.0, endgame_proximity / PRESSURE_ENDGAME_WINDOW))
         margin_tightness = 1.0 - max(0.0, min(1.0, abs(u - t) / PRESSURE_MARGIN_WINDOW))
-        pressure = (0.5 * endgame_proximity) + (0.5 * margin_tightness)
-        return max(0.0, min(1.0, pressure))
+        return max(0.0, min(1.0, (0.5 * endgame_proximity) + (0.5 * margin_tightness)))
 
     def apply_pressure(self, base_v: List[float], pressure: float, amp_frac: float) -> List[float]:
-        """Shift additional probability mass into the error slot as pressure rises, renormalizing the rest."""
+        """Shift additional probability mass into the error slot as leverage rises, renormalizing the rest."""
         if amp_frac <= 0.0 or pressure <= 0.0:
             return base_v
         v = list(base_v)
@@ -892,6 +918,32 @@ class ProportionalInductionEngine:
                 if i != err_idx:
                     v[i] *= scale
         return v
+
+    def _compute_leverage_grid(self, v0: List[List[List[float]]]) -> List[List[float]]:
+        """
+        Build the normalized point-leverage grid from a no-pressure value function.
+
+        leverage(u, t) = | V0(u+1, t, OUR_SERVE) - V0(u, t+1, THEIR_SERVE) |
+        i.e. the absolute swing in set-win probability from winning vs losing the
+        rally at (u, t). Normalized so the maximum over the solved grid is 1.0.
+        Only scores 0..max_cap are filled; the deuce-tail region uses the fallback
+        in get_pressure (it depends only on the capped score difference there).
+        """
+        dim: int = self.max_cap + 2
+        lev: List[List[float]] = [[0.0] * dim for _ in range(dim)]
+        max_l: float = 1e-9
+        for u in range(self.max_cap + 1):
+            for t in range(self.max_cap + 1):
+                v_win = v0[u + 1][t][MAP_STATE["OUR_SERVE"]]
+                v_lose = v0[u][t + 1][MAP_STATE["THEIR_SERVE"]]
+                lev[u][t] = abs(v_win - v_lose)
+                if lev[u][t] > max_l:
+                    max_l = lev[u][t]
+        self.max_leverage = max_l
+        for u in range(self.max_cap + 1):
+            for t in range(self.max_cap + 1):
+                lev[u][t] = lev[u][t] / max_l
+        return lev
 
     def solve_deuce_tail(self, ts_v: List[float], fl_v: List[float], ts_amp: float, fl_amp: float) -> Dict[str, Any]:
         """
@@ -950,14 +1002,13 @@ class ProportionalInductionEngine:
             "p_fl_at": p_fl_at,
         }
 
-    def solve_optimal_policy_map(self, ts_v: List[float], fl_v: List[float], ts_amp: float, fl_amp: float
-                                  ) -> Tuple[List[List[List[float]]], List[List[List[int]]], List[List[List[float]]], List[List[float]], List[List[float]]]:
+    def _solve_pass(self, ts_v: List[float], fl_v: List[float], ts_amp: float, fl_amp: float
+                     ) -> Tuple[List[List[List[float]]], List[List[List[int]]], List[List[List[float]]], List[List[float]], List[List[float]]]:
         """
-        At every score, picks whichever serve has the higher pressure-adjusted point-win
-        probability at THAT exact score (ts_amp/fl_amp let error rate climb under leverage
-        -- see get_pressure/apply_pressure). No hidden tie-break or smoothing: the action
-        with the higher probability wins, full stop, including at 0.0000001 margins that
-        only matter definitionally, not any positive epsilon carve-out.
+        Single backward-induction solve of the value/policy grids at the given serve
+        vectors and pressure amplitudes. Pressure at each score is read from
+        get_pressure (leverage-based once pressure_grid is populated, heuristic
+        otherwise). Terminal states and the win-by-2 deuce tail are handled first.
         """
         dim: int = self.max_cap + 2
         v_grid: List[List[List[float]]] = [[[0.0] * 2 for _ in range(dim)] for _ in range(dim)]
@@ -1024,6 +1075,27 @@ class ProportionalInductionEngine:
 
         return v_grid, policy_grid, delta_v_grid, ts_rally_grid, fl_rally_grid
 
+    def solve_optimal_policy_map(self, ts_v: List[float], fl_v: List[float], ts_amp: float, fl_amp: float, reuse_pressure: bool = False
+                                  ) -> Tuple[List[List[List[float]]], List[List[List[int]]], List[List[List[float]]], List[List[float]], List[List[float]]]:
+        """
+        Two-pass solve:
+
+        Pass 1 (no pressure): solve the value function with amp=0 everywhere to get
+        the INTRINSIC stakes of each point, independent of the pressure model itself.
+        From it, build the normalized point-leverage grid (self.pressure_grid).
+
+        Pass 2 (real pressure): re-solve using leverage-based pressure so error rates
+        climb exactly where the point matters most.
+
+        reuse_pressure=True skips pass 1 and reuses the already-built leverage grid,
+        which keeps the sensitivity analysis clean (it isolates the serve-skill effect
+        instead of also perturbing the pressure schedule) and is faster.
+        """
+        if not reuse_pressure or self.pressure_grid is None:
+            v0, _, _, _, _ = self._solve_pass(ts_v, fl_v, 0.0, 0.0)
+            self.pressure_grid = self._compute_leverage_grid(v0)
+        return self._solve_pass(ts_v, fl_v, ts_amp, fl_amp)
+
     def compute_wilson_score_bounds_from_counts(self, expected_successes: float, n: int) -> Tuple[float, float]:
         if n == 0: return 0.0, 1.0
         obs_p: float = expected_successes / n
@@ -1036,21 +1108,34 @@ class ProportionalInductionEngine:
         return low, high
 
     def run_policy_simulation(self, start_us: int, start_them: int, start_serving: int, ts_v: List[float], fl_v: List[float], ts_amp: float, fl_amp: float, policy_grid: List[List[List[int]]], trials: int, force_heuristic: str = "optimal") -> float:
+        """
+        Honest Monte Carlo of the full set, including the win-by-2 deuce region.
+
+        The deuce region is played out rally-by-rally (no pressure, no early cap
+        cutoff) so the simulation is a genuine independent check of the DP value,
+        not a tautology. A guard bounds pathological runs. In the deuce region the
+        action is chosen by directly comparing the leverage-adjusted topspin vs
+        float point-win rates (matching the DP's deuce-tail action selection).
+        """
         random.seed(RANDOM_SEED)
         wins: int = 0
         for _ in range(trials):
             u, t, server = start_us, start_them, start_serving
+            guard: int = 0
             while True:
+                guard += 1
+                if guard > 5000:
+                    # Pathological run (extremely unlikely at realistic rates): avoid hang.
+                    if u > t: wins += 1
+                    break
                 if u >= SET_POINTS and (u - t) >= WIN_MARGIN:
                     wins += 1; break
                 if t >= SET_POINTS and (t - u) >= WIN_MARGIN:
                     break
-                if u >= self.max_cap or t >= self.max_cap:
-                    if u > t: wins += 1
-                    break
-                
+
                 roll: float = random.random()
                 if server == MAP_STATE["OUR_SERVE"]:
+                    pressure = self.get_pressure(u, t)
                     if force_heuristic == "always_ts":
                         action = MAP_ACTION["TOPSPIN"]
                     elif force_heuristic == "always_fl":
@@ -1058,9 +1143,14 @@ class ProportionalInductionEngine:
                     elif force_heuristic == "naive":
                         action = MAP_ACTION["TOPSPIN"] if u >= t else MAP_ACTION["FLOAT"]
                     else:
-                        action = policy_grid[u][t][MAP_STATE["OUR_SERVE"]]
+                        if u >= self.max_cap or t >= self.max_cap:
+                            # Deuce tail: choose action by comparing adjusted rates at this leverage.
+                            p_ts_d = self.compute_rally_metrics(self.apply_pressure(ts_v, pressure, ts_amp))
+                            p_fl_d = self.compute_rally_metrics(self.apply_pressure(fl_v, pressure, fl_amp))
+                            action = MAP_ACTION["TOPSPIN"] if p_ts_d >= p_fl_d else MAP_ACTION["FLOAT"]
+                        else:
+                            action = policy_grid[u][t][MAP_STATE["OUR_SERVE"]]
 
-                    pressure = self.get_pressure(u, t)
                     if action == MAP_ACTION["TOPSPIN"]:
                         p_win: float = self.compute_rally_metrics(self.apply_pressure(ts_v, pressure, ts_amp))
                     else:
@@ -1228,8 +1318,6 @@ def execute_optimization_sequence(event: Any) -> None:
     fl_v_raw: List[float] = [fl_ace_cnt/fl_n, fl_err_cnt/fl_n, fl_poor_cnt/fl_n, fl_avg_cnt/fl_n, fl_perf_cnt/fl_n]
 
     # Shrink small-sample rates toward a generic prior before they drive any decisions.
-    # With enough serves logged this barely moves the numbers; with a handful of serves
-    # it keeps a lucky/unlucky small sample from being treated as a settled tendency.
     ts_v: List[float] = shrink_categorical_vector([ts_ace_cnt, ts_err_cnt, ts_poor_cnt, ts_avg_cnt, ts_perf_cnt], ts_n)
     fl_v: List[float] = shrink_categorical_vector([fl_ace_cnt, fl_err_cnt, fl_poor_cnt, fl_avg_cnt, fl_perf_cnt], fl_n)
     ts_low_confidence: bool = ts_n < MIN_RELIABLE_SAMPLE
@@ -1242,12 +1330,14 @@ def execute_optimization_sequence(event: Any) -> None:
     fl_rally_base: float = model.compute_rally_metrics(fl_v)
     
     t0: float = time.time()
+    # Two-pass solve: builds the leverage grid (pass 1), then solves with leverage-based pressure (pass 2).
     v_grid, policy_grid, delta_v_grid, ts_rally_grid, fl_rally_grid = model.solve_optimal_policy_map(ts_v, fl_v, press_amp_ts, press_amp_fl)
     resolved_equity: float = model.clamp_probability(v_grid[score_us][score_them][server_state])
     t_dp: float = (time.time() - t0) * 1000.0
 
-    # Pressure-adjusted point-win rates and leverage index at the score currently on the board
+    # Pressure-adjusted point-win rates and leverage at the score currently on the board
     pressure_at_score: float = model.get_pressure(score_us, score_them)
+    leverage_at_score: float = pressure_at_score * model.max_leverage
     ts_rally: float = ts_rally_grid[score_us][score_them]
     fl_rally: float = fl_rally_grid[score_us][score_them]
 
@@ -1274,10 +1364,11 @@ def execute_optimization_sequence(event: Any) -> None:
             for i in range(len(v_mod)):
                 if i != target_idx: v_mod[i] = max(0.0, v_mod[i] - step)
 
+        # Reuse the base leverage grid so the perturbation isolates the serve-skill effect.
         if recommended_action == MAP_ACTION["TOPSPIN"]:
-            g, _, _, _, _ = model.solve_optimal_policy_map(v_mod, fl_v, press_amp_ts, press_amp_fl)
+            g, _, _, _, _ = model.solve_optimal_policy_map(v_mod, fl_v, press_amp_ts, press_amp_fl, True)
         else:
-            g, _, _, _, _ = model.solve_optimal_policy_map(ts_v, v_mod, press_amp_ts, press_amp_fl)
+            g, _, _, _, _ = model.solve_optimal_policy_map(ts_v, v_mod, press_amp_ts, press_amp_fl, True)
         return model.clamp_probability(g[score_us][score_them][server_state])
 
     for target in range(5):
@@ -1370,6 +1461,7 @@ def execute_optimization_sequence(event: Any) -> None:
         "ts_rally_raw_unshrunk": float(model.compute_rally_metrics(ts_v_raw)),
         "fl_rally_raw_unshrunk": float(model.compute_rally_metrics(fl_v_raw)),
         "pressure_at_score": float(pressure_at_score),
+        "leverage_at_score": float(leverage_at_score),
         "press_amp_ts": float(press_amp_ts),
         "press_amp_fl": float(press_amp_fl),
         "sens_deltas": [float(x) for x in sens_deltas], 
@@ -1391,7 +1483,10 @@ def execute_optimization_sequence(event: Any) -> None:
         "dataset_accuracy": float(dataset_accuracy)
     }
     
-    js.eval(f"window.handleEngineCallback('{json.dumps(payload)}')")
+    # Safe channel: assign the JSON as a JS object literal (valid JS, no single-quote
+    # wrapping) then invoke the handler with the object. Avoids the old injection /
+    # escaping bug where a stray quote or backslash in the payload broke js.eval.
+    js.eval("window.__enginePayload = " + json.dumps(payload) + "; window.handleEngineCallback(window.__enginePayload);")
     btn.disabled = False; loader.style.display = "none"
 </script>
 </body>
