@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1488,7 +1488,7 @@ def execute_optimization_sequence(event: Any) -> None:
     # escaping bug where a stray quote or backslash in the payload broke js.eval.
     js.eval("window.__enginePayload = " + json.dumps(payload) + "; window.handleEngineCallback(window.__enginePayload);")
     btn.disabled = False; loader.style.display = "none"
-    <script src="export-fixes.js"></script>
+
 
 </script>
 <script src="export-fixes.js"></script>
