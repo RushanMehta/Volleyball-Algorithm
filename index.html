@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Volleyball Serve Optimization Decision Framework</title>
     
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
@@ -132,7 +132,7 @@
 
     <div class="container">
         <h1>Coaches' Serve Optimization Assistant</h1>
-        <div class="subtitle">Smart Match Planning & Decision Engine for High School and Club Volleyball</div>
+        <div class="subtitle">Smart Match Planning & Decision Engine for All Levels of Volleyball</div>
         
         <div class="tab-container">
             <button class="tab active" onclick="switchTab(event, 'tab-engine')">Interactive Dashboard</button>
@@ -1488,6 +1488,9 @@ def execute_optimization_sequence(event: Any) -> None:
     # escaping bug where a stray quote or backslash in the payload broke js.eval.
     js.eval("window.__enginePayload = " + json.dumps(payload) + "; window.handleEngineCallback(window.__enginePayload);")
     btn.disabled = False; loader.style.display = "none"
+    <script src="export-fixes.js"></script>
+
 </script>
+<script src="export-fixes.js"></script>
 </body>
 </html>
