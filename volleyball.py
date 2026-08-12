@@ -1,601 +1,222 @@
 import csv
 import io
 import math
-from typing import Dict, Tuple, Optional, List
+from typing import Dict, Tuple, Optional
 
 
 class VolleyballMatchSimulator:
-    """
-    Serve-strategy decision engine for rally-scoring volleyball. Applies to High School,
-    Club, College, and Pro play -- pass the level/gender that fits, or better, supply
-    opponent_stats= directly from what you've actually observed of a specific opponent.
-
-    Improvements in this version, in response to external review:
-      1. Opponent-specific attack rates can override the level/gender baseline.
-      2. Small-sample serve stats are shrunk toward a prior instead of trusted at face value.
-      3. Deuce (both sides >= 24) is solved with an exact closed-form formula instead of a
-         score-cap approximation.
-      4. Sample-size-aware confidence: recommendations flag when a strategy's stats are
-         too thin to trust.
-      5. Sensitivity analysis: how much set-win probability moves per +1pt improvement in
-         each serve outcome.
-      6. Validation scaffolding: a method to check predictions against real recorded sets
-         (you must supply real match logs -- there is no substitute for that, and this
-         method will happily report a misleadingly good number if fed synthetic data).
-      7. CSV import for serve stats exported from stat-keeping apps (e.g. GameChanger).
-    """
-
-    # ---- Shrinkage priors -------------------------------------------------------------
-    # These are rough, generic starting points for serve/pass outcomes, NOT measured
-    # truth for any specific team. They only matter when a strategy has few observations;
-    # as sample size grows the shrinkage below converges to the observed rate regardless
-    # of what these are set to. Treat them as tunable defaults, adjust if you have a
-    # better generic prior (e.g. your program's historical average across all players).
-    PRIOR_ACE_RATE: float = 0.10
-    PRIOR_ERROR_RATE: float = 0.12
-    PRIOR_OPP_PERFECT_PASS_RATE: float = 0.32
-    SHRINKAGE_PSEUDO_COUNT: float = 20.0  # "weight" of the prior, in equivalent observations
-
-    def __init__(self, level: str, gender: str, opponent_stats: Optional[Dict[str, float]] = None):
+    def __init__(self, level: str, gender: str):
         self.level = level
         self.gender = gender
-        # If real, measured opponent stats are supplied (in_system / out_system kill %),
-        # use them. Otherwise fall back to the level/gender baseline table.
-        self.base_rates = opponent_stats if opponent_stats else self._get_baseline_rates()
+        self.base_rates = self._get_baseline_rates()
 
-    def _get_baseline_rates(self) -> Dict[str, float]:
+    def _get_baseline_rates(self):
         """
-        Fallback benchmark attack success rates based on level and gender, used only when
-        you haven't supplied real opponent-specific stats via opponent_stats=.
-        'in_system': opponent kill percentage when they pass perfectly.
-        'out_system': opponent kill percentage when forced into a poor pass.
+        Establishes real-world benchmark attack success rates based on level and gender.
 
-        IMPORTANT: these numbers are my own reasonable-sounding estimates, not figures
-        pulled from a cited dataset or published study. If this is going into anything
-        research-facing (a paper, a competition writeup, a claim to a reviewer), don't
-        present these as measured facts -- either cite a real source for them, replace
-        them with your own program's/league's historical data, or explicitly caveat them
-        as unvalidated placeholders. The right hierarchy, if you want this to be
-        defensible, is: actual opponent data (opponent_stats=) > your team's own
-        historical data against comparable opponents > these generic level/gender
-        placeholders, not the placeholders as a default source of truth.
+        'in_system': Opponent kill percentage when they pass perfectly.
+        'out_system': Opponent kill percentage when forced into a poor pass.
         """
         transitions = {
-            ('Pro', 'Boys'): {'in_system': 0.64, 'out_system': 0.38},
-            ('Pro', 'Girls'): {'in_system': 0.52, 'out_system': 0.28},
-            ('College', 'Boys'): {'in_system': 0.58, 'out_system': 0.34},
-            ('College', 'Girls'): {'in_system': 0.46, 'out_system': 0.24},
-            # Club/travel ball spans a wide skill range (12s through 18s, various
-            # circuits) -- these sit between High School and College as a rough midpoint,
-            # not a measured figure. Prefer opponent_stats= if you have real numbers for
-            # the specific club team you're facing.
-            ('Club', 'Boys'): {'in_system': 0.54, 'out_system': 0.31},
-            ('Club', 'Girls'): {'in_system': 0.42, 'out_system': 0.20},
-            ('High School', 'Boys'): {'in_system': 0.50, 'out_system': 0.28},
-            ('High School', 'Girls'): {'in_system': 0.38, 'out_system': 0.16}
+            ("Pro", "Boys"): {"in_system": 0.64, "out_system": 0.38},
+            ("Pro", "Girls"): {"in_system": 0.52, "out_system": 0.28},
+            ("College", "Boys"): {"in_system": 0.58, "out_system": 0.34},
+            ("College", "Girls"): {"in_system": 0.46, "out_system": 0.24},
+            ("High School", "Boys"): {"in_system": 0.50, "out_system": 0.28},
+            ("High School", "Girls"): {"in_system": 0.38, "out_system": 0.16},
         }
-        return transitions.get((self.level, self.gender), {'in_system': 0.45, 'out_system': 0.25})
 
-    # ---- Sample-size-aware rate estimation ---------------------------------------------
-
-    @staticmethod
-    def _shrink(successes: float, n: float, prior_p: float, pseudo_count: float) -> float:
-        """
-        Empirical-Bayes shrinkage: blends an observed rate toward a prior, weighted by how
-        much data backs the observation up. A rate from 12 serves gets pulled hard toward
-        the prior; one from 600 serves is barely moved. Equivalent to a Beta(prior_p *
-        pseudo_count, (1-prior_p) * pseudo_count) prior updated with the observed counts.
-        """
-        n = max(0.0, n)
-        return (successes + prior_p * pseudo_count) / (n + pseudo_count)
-
-    @staticmethod
-    def _wilson_bounds(successes: float, n: float, z: float = 1.96) -> Tuple[float, float]:
-        """95% Wilson score interval for a binomial rate -- reported alongside shrunk rates
-        so you can see how much uncertainty remains even after shrinkage."""
-        if n <= 0:
-            return (0.0, 1.0)
-        p = successes / n
-        denom = 1 + (z ** 2) / n
-        center = p + (z ** 2) / (2 * n)
-        spread = z * ((p * (1 - p) / n) + (z ** 2) / (4 * n ** 2)) ** 0.5
-        low = max(0.0, (center - spread) / denom)
-        high = min(1.0, (center + spread) / denom)
-        return (low, high)
-
-    @classmethod
-    def estimate_serve_rates(cls, serve_counts: Dict[str, float]) -> Dict[str, object]:
-        """
-        Converts raw counts into shrinkage-adjusted rates ready for
-        calculate_point_win_probability, plus metadata about how much to trust them.
-
-        serve_counts expects:
-            total_serves, ace_count, error_count,
-            opp_perfect_pass_count, opp_total_passes_observed (defaults to total_serves,
-            but ONLY if opp_perfect_pass_count was actually supplied)
-
-        If opp_perfect_pass_count is omitted entirely (e.g. importing from an app that
-        doesn't track pass quality), that's "no data", not "observed zero successes" --
-        treating it as the latter would wrongly drag the estimate toward 0 instead of
-        toward the prior. So a missing key here means "trust the prior fully."
-        """
-        n = serve_counts['total_serves']
-        ace_count = serve_counts['ace_count']
-        error_count = serve_counts['error_count']
-
-        if n < 0 or ace_count < 0 or error_count < 0:
-            raise ValueError(f"Counts can't be negative (got total_serves={n}, ace_count={ace_count}, error_count={error_count}).")
-        if ace_count + error_count > n:
-            raise ValueError(f"ace_count + error_count ({ace_count + error_count}) exceeds total_serves ({n}) -- can't have more aces and errors than serves.")
-
-        pass_data_available = 'opp_perfect_pass_count' in serve_counts
-        pass_successes = serve_counts.get('opp_perfect_pass_count', 0)
-        pass_n = serve_counts.get('opp_total_passes_observed', n) if pass_data_available else 0
-        if pass_data_available and (pass_successes < 0 or pass_n < 0 or pass_successes > pass_n):
-            raise ValueError(f"opp_perfect_pass_count ({pass_successes}) must be between 0 and opp_total_passes_observed ({pass_n}).")
-
-        ace_rate = cls._shrink(ace_count, n, cls.PRIOR_ACE_RATE, cls.SHRINKAGE_PSEUDO_COUNT)
-        error_rate = cls._shrink(error_count, n, cls.PRIOR_ERROR_RATE, cls.SHRINKAGE_PSEUDO_COUNT)
-        opp_perfect_pass_rate = cls._shrink(pass_successes, pass_n, cls.PRIOR_OPP_PERFECT_PASS_RATE, cls.SHRINKAGE_PSEUDO_COUNT)
-
-        return {
-            'ace_rate': ace_rate,
-            'error_rate': error_rate,
-            'opp_perfect_pass_rate': opp_perfect_pass_rate,
-            'pass_data_available': pass_data_available,
-            'sample_size': n,
-            'raw_ace_rate': (ace_count / n) if n else 0.0,
-            'raw_error_rate': (error_count / n) if n else 0.0,
-            'ace_rate_95ci': cls._wilson_bounds(ace_count, n),
-            'error_rate_95ci': cls._wilson_bounds(error_count, n),
-        }
+        return transitions.get(
+            (self.level, self.gender),
+            {"in_system": 0.45, "out_system": 0.25},
+        )
 
     def calculate_point_win_probability(self, serve_stats: dict) -> float:
         """
-        Calculates the probability that the serving team wins the rally,
-        i.e. the probability we win a point WHEN WE ARE SERVING.
-        Expects rate-based keys (ace_rate, error_rate, opp_perfect_pass_rate) -- if you
-        have raw counts, run them through estimate_serve_rates() first.
-        """
-        p_ace = serve_stats['ace_rate']
-        p_error = serve_stats['error_rate']
-        p_perfect_pass = serve_stats['opp_perfect_pass_rate']
+        Calculates the probability that the serving team wins the rally.
 
-        for label, val in [('ace_rate', p_ace), ('error_rate', p_error), ('opp_perfect_pass_rate', p_perfect_pass)]:
-            if not (0.0 <= val <= 1.0):
-                raise ValueError(f"{label} must be between 0 and 1 (got {val}).")
-        if p_ace + p_error > 1.0:
-            raise ValueError(f"ace_rate + error_rate ({p_ace + p_error}) can't exceed 1.0.")
+        Expected keys:
+            ace_rate
+            error_rate
+            opp_perfect_pass_rate
+
+        All three values must be probabilities from 0 to 1.
+        """
+        try:
+            p_ace = float(serve_stats["ace_rate"])
+            p_error = float(serve_stats["error_rate"])
+            p_perfect_pass = float(serve_stats["opp_perfect_pass_rate"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(
+                "serve_stats must contain numeric ace_rate, error_rate, "
+                "and opp_perfect_pass_rate values."
+            ) from exc
+
+        if not 0 <= p_ace <= 1:
+            raise ValueError("ace_rate must be between 0 and 1.")
+
+        if not 0 <= p_error <= 1:
+            raise ValueError("error_rate must be between 0 and 1.")
+
+        if p_ace + p_error > 1:
+            raise ValueError("ace_rate + error_rate cannot exceed 1.")
+
+        if not 0 <= p_perfect_pass <= 1:
+            raise ValueError("opp_perfect_pass_rate must be between 0 and 1.")
 
         p_in = 1.0 - (p_ace + p_error)
 
-        if p_in <= 0:
-            return p_ace
+        opp_kill_in_sys = self.base_rates["in_system"]
+        opp_kill_out_sys = self.base_rates["out_system"]
 
-        opp_kill_in_sys = self.base_rates['in_system']
-        opp_kill_out_sys = self.base_rates['out_system']
+        opp_efficiency_weighted = (
+            p_perfect_pass * opp_kill_in_sys
+            + (1.0 - p_perfect_pass) * opp_kill_out_sys
+        )
 
-        opp_efficiency_weighted = (p_perfect_pass * opp_kill_in_sys) + ((1 - p_perfect_pass) * opp_kill_out_sys)
         p_we_win_rally = 1.0 - opp_efficiency_weighted
 
         return p_ace + (p_in * p_we_win_rally)
 
-    # ---- Exact deuce solution ------------------------------------------------------------
-
-    @staticmethod
-    def _solve_deuce_analytically(p_s: float, p_r: float) -> Dict[int, Dict[bool, float]]:
+    def compute_set_win_expectancy(
+        self,
+        score_us: int,
+        score_them: int,
+        serving: bool,
+        p_win_serve: float,
+        p_win_receive: float,
+        memo: Optional[Dict[Tuple[int, int, bool], float]] = None,
+    ) -> float:
         """
-        Closed-form solution for the deuce sub-game once both teams have reached 24+.
+        Uses dynamic programming / recursion to find the probability of
+        winning a 25-point rally-scoring set, requiring a 2-point margin.
 
-        Beyond that point nothing in this model depends on the absolute score any more --
-        only the score DIFFERENCE d (in {-1, 0, 1}, since |d| >= 2 already ends the set)
-        and who is currently serving. That makes it a stationary Markov chain, solvable
-        exactly instead of approximated with a score cap:
-
-            V(d, serving) = p * V(d+1, True) + (1-p) * V(d-1, False)
-            V(+2, *) = 1,  V(-2, *) = 0
-            p = p_s if serving else p_r
-
-        Writing out V(0,T), V(0,F), V(1,T), V(1,F), V(-1,T), V(-1,F) gives six linear
-        equations; substituting the +-1 states into the d=0 equations reduces it to a 2x2
-        linear system in V(0,T) and V(0,F), solved below. (Verified numerically against a
-        brute-force high-cap DP to 6+ decimal places.)
+        serving=True means our team is serving the next rally.
+        serving=False means the opponent is serving the next rally.
         """
-        A1 = 1 - (1 - p_s) * p_r
-        A2 = p_s * (1 - p_s)
-        A_rhs = p_s ** 2
-        B2 = (1 - p_r) * p_r
-        B_rhs = p_r * p_s
+        if not 0 <= p_win_serve <= 1:
+            raise ValueError("p_win_serve must be between 0 and 1.")
 
-        denom = A1 ** 2 - A2 * B2
-        V0F = (A1 * B_rhs + A_rhs * B2) / denom
-        V0T = (A_rhs + A2 * V0F) / A1
-        V1T = p_s + (1 - p_s) * V0F
-        V1F = p_r + (1 - p_r) * V0F
-        Vm1T = p_s * V0T
-        Vm1F = p_r * V0T
+        if not 0 <= p_win_receive <= 1:
+            raise ValueError("p_win_receive must be between 0 and 1.")
 
-        return {
-            0: {True: V0T, False: V0F},
-            1: {True: V1T, False: V1F},
-            -1: {True: Vm1T, False: Vm1F},
-        }
+        if score_us < 0 or score_them < 0:
+            raise ValueError("Scores cannot be negative.")
 
-    def compute_set_win_expectancy(self, score_us: int, score_them: int, serving: bool,
-                                    p_win_serve: float, p_win_receive: float, memo=None) -> float:
-        """
-        Exact probability of winning a 25-point set (win by 2), via DP for score_us/them
-        < 24 and the closed-form deuce solution once both sides have reached 24+.
-
-        p_win_serve: our probability of winning a rally when we're serving.
-        p_win_receive: our probability of winning a rally when the opponent is serving
-            (i.e. our side-out rate). Independent of serve strategy.
-        Winning a rally means we serve next; losing it means the opponent does.
-        """
         if memo is None:
             memo = {}
 
-        if score_us >= 25 and (score_us - score_them) >= 2:
-            return 1.0
-        if score_them >= 25 and (score_them - score_us) >= 2:
-            return 0.0
-
-        # Exact tail: once both sides are past 24, only the score difference matters.
-        if score_us >= 24 and score_them >= 24:
-            diff = score_us - score_them
-            deuce_solution = self._solve_deuce_analytically(p_win_serve, p_win_receive)
-            return deuce_solution[diff][serving]
-
         state = (score_us, score_them, serving)
+
         if state in memo:
             return memo[state]
 
+        # Terminal set conditions.
+        if score_us >= 25 and (score_us - score_them) >= 2:
+            return 1.0
+
+        if score_them >= 25 and (score_them - score_us) >= 2:
+            return 0.0
+
+        # Exact long-deuce shortcut:
+        # once both teams are above 30, only the score difference matters.
+        # At 31-31, for example, the next two-point race is symmetric.
+        if score_us > 30 or score_them > 30:
+            if score_us == score_them:
+                return 0.5
+            return 1.0 if score_us > score_them else 0.0
+
         p_win_point = p_win_serve if serving else p_win_receive
 
+        # Winning the rally gives us the point and the serve.
         prob_if_we_win_point = self.compute_set_win_expectancy(
-            score_us + 1, score_them, True, p_win_serve, p_win_receive, memo)
-        prob_if_we_lose_point = self.compute_set_win_expectancy(
-            score_us, score_them + 1, False, p_win_serve, p_win_receive, memo)
+            score_us + 1,
+            score_them,
+            True,
+            p_win_serve,
+            p_win_receive,
+            memo,
+        )
 
-        win_expectancy = (p_win_point * prob_if_we_win_point) + ((1 - p_win_point) * prob_if_we_lose_point)
+        # Losing the rally gives the opponent the point and serve.
+        prob_if_we_lose_point = self.compute_set_win_expectancy(
+            score_us,
+            score_them + 1,
+            False,
+            p_win_serve,
+            p_win_receive,
+            memo,
+        )
+
+        win_expectancy = (
+            p_win_point * prob_if_we_win_point
+            + (1.0 - p_win_point) * prob_if_we_lose_point
+        )
+
         memo[state] = win_expectancy
         return win_expectancy
 
-    # ---- Sensitivity analysis -----------------------------------------------------------
-
-    def compute_sensitivity(self, score_us: int, score_them: int, serving: bool,
-                             serve_stats: dict, our_sideout_rate: float,
-                             step: float = 0.01) -> Dict[str, float]:
+    def get_optimal_strategy(
+        self,
+        current_score: tuple,
+        player_profile: dict,
+        serving: bool,
+        our_sideout_rate: float,
+    ):
         """
-        How much set-win probability changes for a +1 percentage point improvement in each
-        serve outcome (higher ace rate, lower error rate, forcing worse opponent passing),
-        holding the score fixed. Mirrors the tornado-chart sensitivity analysis used in the
-        web dashboard version of this tool.
-        """
-        baseline_point = self.calculate_point_win_probability(serve_stats)
-        baseline_set = self.compute_set_win_expectancy(score_us, score_them, serving, baseline_point, our_sideout_rate)
-
-        results = {}
-        for label, key, direction in [
-            ("ace_rate_up", "ace_rate", +1),
-            ("error_rate_down", "error_rate", -1),
-            ("opp_perfect_pass_rate_down", "opp_perfect_pass_rate", -1),
-        ]:
-            modified = dict(serve_stats)
-            modified[key] = max(0.0, min(1.0, modified[key] + direction * step))
-            p_point = self.calculate_point_win_probability(modified)
-            p_set = self.compute_set_win_expectancy(score_us, score_them, serving, p_point, our_sideout_rate)
-            results[label] = round(p_set - baseline_set, 5)
-
-        return results
-
-    # ---- Strategy selection --------------------------------------------------------------
-
-    def get_optimal_strategy(self, current_score: tuple, player_profile: Dict[str, dict],
-                              serving: bool, our_sideout_rate: float,
-                              min_reliable_sample: int = 30) -> dict:
-        """
-        Evaluates all strategies and returns the optimal choice for the coach.
+        Evaluates all serving strategies and returns the one with the
+        highest projected probability of winning the current set.
 
         current_score: (score_us, score_them)
-        serving: True if WE are about to serve at this score, False if the opponent is.
-        our_sideout_rate: our probability of winning a rally when RECEIVING serve.
-        player_profile: each strategy's stats can be given either as pre-computed rates
-            (ace_rate, error_rate, opp_perfect_pass_rate) or as raw counts (total_serves,
-            ace_count, error_count, opp_perfect_pass_count[, opp_total_passes_observed]).
-            Raw counts get shrunk toward a prior via estimate_serve_rates(); pre-computed
-            rates are used as-is (no sample-size correction possible without counts).
-        min_reliable_sample: strategies with fewer observed serves than this get flagged
-            as low_confidence in the output, regardless of how good they look.
+        serving: True if we are about to serve.
+        our_sideout_rate: probability that we win a rally while receiving
+                           the opponent's serve.
         """
+        if not isinstance(current_score, tuple) or len(current_score) != 2:
+            raise ValueError("current_score must be a tuple: (score_us, score_them).")
+
         score_us, score_them = current_score
+
+        if score_us < 0 or score_them < 0:
+            raise ValueError("Scores cannot be negative.")
+
+        if not 0 <= our_sideout_rate <= 1:
+            raise ValueError("our_sideout_rate must be between 0 and 1.")
+
+        if not player_profile:
+            raise ValueError("player_profile cannot be empty.")
+
         best_strategy = None
         max_set_win_prob = -1.0
         strategy_analysis = {}
 
         for strategy_name, stats in player_profile.items():
-            sample_size = None
-            low_confidence = False
+            p_point = self.calculate_point_win_probability(stats)
 
-            if 'total_serves' in stats:
-                est = self.estimate_serve_rates(stats)
-                rate_stats = {
-                    'ace_rate': est['ace_rate'],
-                    'error_rate': est['error_rate'],
-                    'opp_perfect_pass_rate': est['opp_perfect_pass_rate'],
-                }
-                sample_size = est['sample_size']
-                low_confidence = sample_size < min_reliable_sample
-            else:
-                rate_stats = stats
-
-            p_point = self.calculate_point_win_probability(rate_stats)
-            p_set = self.compute_set_win_expectancy(score_us, score_them, serving, p_point, our_sideout_rate)
-            sensitivity = self.compute_sensitivity(score_us, score_them, serving, rate_stats, our_sideout_rate)
+            # Use a fresh memo table for each strategy so probabilities
+            # cannot accidentally leak between different serve profiles.
+            p_set = self.compute_set_win_expectancy(
+                score_us,
+                score_them,
+                serving,
+                p_point,
+                our_sideout_rate,
+            )
 
             strategy_analysis[strategy_name] = {
                 "point_win_prob": round(p_point, 3),
                 "set_win_expectancy": round(p_set, 3),
-                "sample_size": sample_size,
-                "low_confidence": low_confidence,
-                "sensitivity_per_1pt_improvement": sensitivity,
             }
 
             if p_set > max_set_win_prob:
                 max_set_win_prob = p_set
                 best_strategy = strategy_name
 
-        # Don't let a low-confidence strategy silently win just because its point
-        # estimate happens to be highest -- surface it instead of hiding it. Still report
-        # the point-estimate winner as the top pick (unreliable-but-real information beats
-        # no information), but flag it plainly, and note whenever a more-reliable
-        # alternative was close behind so the coach can weigh that tradeoff themselves.
-        best_metrics = strategy_analysis[best_strategy]
-        recommendation_caveat = None
-        if best_metrics["low_confidence"]:
-            runner_up = max(
-                (name for name in strategy_analysis if name != best_strategy),
-                key=lambda name: strategy_analysis[name]["set_win_expectancy"],
-                default=None,
-            )
-            if runner_up is not None:
-                runner_up_metrics = strategy_analysis[runner_up]
-                gap = best_metrics["set_win_expectancy"] - runner_up_metrics["set_win_expectancy"]
-                recommendation_caveat = (
-                    f"'{best_strategy}' is only backed by {best_metrics['sample_size']} serves "
-                    f"(below the {min_reliable_sample}-serve threshold), so its "
-                    f"{best_metrics['set_win_expectancy']*100:.1f}% estimate is uncertain. "
-                    f"'{runner_up}' is backed by {runner_up_metrics['sample_size'] if runner_up_metrics['sample_size'] is not None else 'a fixed'} "
-                    f"serves at {runner_up_metrics['set_win_expectancy']*100:.1f}%"
-                    f"{' (a more reliable near-equal option)' if gap < 0.05 else ' (a more reliable but clearly lower option)'}."
-                )
-            else:
-                recommendation_caveat = (
-                    f"'{best_strategy}' is only backed by {best_metrics['sample_size']} serves "
-                    f"(below the {min_reliable_sample}-serve threshold) -- treat this recommendation cautiously "
-                    f"until more serves are logged."
-                )
-
         return {
             "current_score": current_score,
             "recommended_strategy": best_strategy,
-            "recommendation_caveat": recommendation_caveat,
             "projected_set_win_probability": round(max_set_win_prob * 100, 1),
-            "any_low_confidence": any(v["low_confidence"] for v in strategy_analysis.values()),
-            "full_analysis": strategy_analysis
-        }
-
-    # ---- Importing stats from CSV stat exports -----------------------------------------
-
-    # Column-header aliases to try to auto-match against a CSV's header row. Case- and
-    # whitespace-insensitive, substring match. NOTE: I don't have a confirmed sample of
-    # any specific app's exact volleyball export column names, so this is a best-effort
-    # fuzzy matcher for common volleyball stat-export wording generally, not a guaranteed
-    # parser for one particular app. Always check the printed column mapping against your
-    # file, and use column_map= to override anything it gets wrong.
-    _PLAYER_ALIASES = ["player", "name", "athlete"]
-    _ATTEMPTS_ALIASES = ["serve att", "service att", "sa", "attempts", "total serves", "serves"]
-    _ACE_ALIASES = ["ace"]
-    _ERROR_ALIASES = ["serve err", "service err", "se", "errors", "err"]
-
-    @classmethod
-    def _match_column(cls, headers: List[str], aliases: List[str]) -> Optional[str]:
-        normalized = {h: h.strip().lower() for h in headers}
-        # Prefer exact matches first, then substring matches, so e.g. "SA" doesn't
-        # accidentally grab a column like "Sac Flies" -- exact alias match wins.
-        for h, norm in normalized.items():
-            if norm in aliases:
-                return h
-        for h, norm in normalized.items():
-            if any(alias in norm for alias in aliases):
-                return h
-        return None
-
-    @classmethod
-    def import_from_csv(cls, filepath_or_text: str, is_text: bool = False,
-                         player_filter: Optional[str] = None,
-                         column_map: Optional[Dict[str, str]] = None) -> Dict[str, dict]:
-        """
-        Imports per-player serve counts (attempts, aces, errors) from a CSV export.
-        Should work with exports from GameChanger and similar stat-keeping apps that use
-        roughly-standard column names, but isn't a verified parser for any one app's exact
-        schema -- treat it as "CSV stat import with fuzzy column matching," not a
-        guaranteed integration.
-
-        IMPORTANT LIMITATION: common stat-tracking apps track service attempts, aces, and
-        errors -- they generally don't track *pass quality forced on the opponent*
-        (poor/average/perfect pass rates), which this model also wants. Imported profiles
-        will therefore have real ace/error/attempt counts but NO pass-quality data.
-        That's handled correctly (see estimate_serve_rates) by falling back entirely to
-        the model's prior for that piece, rather than wrongly assuming "we observed zero
-        good passes." If you separately chart pass quality, add 'opp_perfect_pass_count'
-        / 'opp_total_passes_observed' to the returned dict for a given player before
-        calling get_optimal_strategy.
-
-        Also note: most stat-tracking apps record serves in aggregate -- they don't tag
-        each serve as "topspin" vs "float" the way this tool's own dashboard does. So an
-        import gives you one combined serve profile per player, not a pre-split
-        topspin/float pair. If you track serve type yourself, you'll still need to split
-        those counts by hand.
-
-        filepath_or_text: path to the CSV file, or the raw CSV text itself if is_text=True.
-        player_filter: if given, only rows whose player column contains this substring
-            (case-insensitive) are included; otherwise every player row found is returned.
-        column_map: optional explicit override, e.g.
-            {'player': 'Player Name', 'attempts': 'SA', 'ace': 'Ace', 'error': 'SE'}
-            for any column the auto-matcher gets wrong.
-
-        Returns: {player_name: {"total_serves": int, "ace_count": int, "error_count": int}}
-        plus a special "_column_mapping_used" key describing what was auto-detected, so
-        you can sanity-check it against your actual file.
-        """
-        text = filepath_or_text if is_text else open(filepath_or_text, newline='', encoding='utf-8-sig').read()
-        reader = csv.DictReader(io.StringIO(text))
-        headers = reader.fieldnames or []
-        if not headers:
-            raise ValueError("No header row detected -- is this actually a CSV export?")
-
-        column_map = column_map or {}
-        player_col = column_map.get('player') or cls._match_column(headers, cls._PLAYER_ALIASES)
-        attempts_col = column_map.get('attempts') or cls._match_column(headers, cls._ATTEMPTS_ALIASES)
-        ace_col = column_map.get('ace') or cls._match_column(headers, cls._ACE_ALIASES)
-        error_col = column_map.get('error') or cls._match_column(headers, cls._ERROR_ALIASES)
-
-        missing = [name for name, col in
-                   [("player", player_col), ("serve attempts", attempts_col),
-                    ("aces", ace_col), ("errors", error_col)] if col is None]
-        if missing:
-            raise ValueError(
-                f"Couldn't auto-detect column(s) for: {', '.join(missing)}. "
-                f"Headers found in the file were: {headers}. "
-                f"Pass column_map={{'player': ..., 'attempts': ..., 'ace': ..., 'error': ...}} "
-                f"to specify them manually."
-            )
-
-        players: Dict[str, dict] = {}
-        for row in reader:
-            name = (row.get(player_col) or "").strip()
-            if not name:
-                continue
-            if player_filter and player_filter.lower() not in name.lower():
-                continue
-
-            def _to_int(val):
-                try:
-                    return int(float(str(val).strip() or 0))
-                except (ValueError, TypeError):
-                    return 0
-
-            attempts = _to_int(row.get(attempts_col))
-            aces = _to_int(row.get(ace_col))
-            errors = _to_int(row.get(error_col))
-
-            if name not in players:
-                players[name] = {"total_serves": 0, "ace_count": 0, "error_count": 0}
-            players[name]["total_serves"] += attempts
-            players[name]["ace_count"] += aces
-            players[name]["error_count"] += errors
-
-        players["_column_mapping_used"] = {
-            "player": player_col, "attempts": attempts_col, "ace": ace_col, "error": error_col,
-            "note": "Double-check these against your file's actual headers. No pass-quality "
-                    "data was imported (see method docstring) -- the model will fall back to "
-                    "its prior for opponent pass quality until you supply that separately."
-        }
-        return players
-
-    # ---- Validation scaffolding -----------------------------------------------------------
-
-    @staticmethod
-    def validate_against_recorded_sets(simulator: "VolleyballMatchSimulator",
-                                        records: List[dict]) -> dict:
-        """
-        Checks the model's predictions against REAL recorded match states.
-
-        IMPORTANT: this only means something if `records` comes from actual logged
-        matches. There is no shortcut around collecting that data -- feeding this
-        synthetic or made-up records will produce a number that looks like validation
-        but proves nothing.
-
-        Each record needs:
-            score_us, score_them (int), serving (bool),
-            p_win_serve, p_win_receive (float, the rates that were actually in effect),
-            observed_winner ('us' or 'them')  -- who actually won that set
-
-        Returns several metrics, not just accuracy, because a probability model that's
-        always "51% confident and right" is very different from one that's "99% confident
-        and right" -- accuracy alone treats those identically:
-          - accuracy: fraction of records where the >=50% side actually won. Coarse; a
-            model can have great accuracy while being badly miscalibrated (e.g.
-            overconfident 90%+ calls that only pan out 70% of the time).
-          - brier_score: mean squared error between predicted probability and outcome
-            (0/1). Lower is better; 0 is a perfect probabilistic prediction, 0.25 is what
-            you'd get always guessing 50%.
-          - log_loss: mean negative log-likelihood of the observed outcome under the
-            predicted probability. Lower is better; penalizes confident-and-wrong
-            predictions much more harshly than accuracy does.
-          - calibration_buckets: predictions grouped into probability deciles, each
-            showing the average predicted probability vs. the actual observed win rate in
-            that bucket. A well-calibrated model has these track closely; "predicted ~70%,
-            actually won 40% of the time" is a real problem accuracy alone would hide.
-            Needs a reasonable number of records per bucket to be meaningful -- with only
-            a handful of records this will be noisy, not damning.
-        """
-        if not records:
-            raise ValueError("No records supplied -- validate_against_recorded_sets needs real match data.")
-
-        breakdown = []
-        correct = 0
-        brier_sum = 0.0
-        log_loss_sum = 0.0
-        eps = 1e-9  # avoid log(0) on a maximally-confident-and-wrong prediction
-        for r in records:
-            predicted_prob = simulator.compute_set_win_expectancy(
-                r['score_us'], r['score_them'], r['serving'], r['p_win_serve'], r['p_win_receive'])
-            predicted_winner = "us" if predicted_prob >= 0.5 else "them"
-            outcome = 1.0 if r['observed_winner'] == "us" else 0.0
-            is_correct = predicted_winner == r['observed_winner']
-            correct += int(is_correct)
-
-            brier_sum += (predicted_prob - outcome) ** 2
-            p_clamped = min(max(predicted_prob, eps), 1 - eps)
-            log_loss_sum += -(outcome * math.log(p_clamped) + (1 - outcome) * math.log(1 - p_clamped))
-
-            breakdown.append({
-                **r,
-                "predicted_win_prob": round(predicted_prob, 3),
-                "predicted_winner": predicted_winner,
-                "correct": is_correct,
-            })
-
-        n = len(records)
-
-        # Calibration: bucket by predicted probability decile, compare average prediction
-        # to actual observed win rate in that bucket.
-        buckets: Dict[int, List[dict]] = {}
-        for rec in breakdown:
-            bucket_idx = min(9, int(rec["predicted_win_prob"] * 10))
-            buckets.setdefault(bucket_idx, []).append(rec)
-        calibration_buckets = []
-        for idx in sorted(buckets):
-            group = buckets[idx]
-            avg_predicted = sum(g["predicted_win_prob"] for g in group) / len(group)
-            actual_rate = sum(1.0 if g["observed_winner"] == "us" else 0.0 for g in group) / len(group)
-            calibration_buckets.append({
-                "predicted_range": f"{idx*10}-{idx*10+10}%",
-                "n": len(group),
-                "avg_predicted": round(avg_predicted, 3),
-                "actual_win_rate": round(actual_rate, 3),
-            })
-
-        return {
-            "n_records": n,
-            "accuracy": round(correct / n, 3),
-            "brier_score": round(brier_sum / n, 4),
-            "log_loss": round(log_loss_sum / n, 4),
-            "calibration_buckets": calibration_buckets,
-            "calibration_note": "Buckets with very few records are noisy -- don't over-read a single small bucket." if n < 100 else None,
-            "breakdown": breakdown,
+            "full_analysis": strategy_analysis,
         }
 
 
@@ -603,63 +224,65 @@ class VolleyballMatchSimulator:
 # COACH'S USAGE EXAMPLE
 # ==========================================
 if __name__ == "__main__":
-    # Example Scenario: High School Girls Match, generic level/gender baseline
-    # (pass opponent_stats={'in_system':..., 'out_system':...} instead if you've
-    # actually measured THIS opponent's attack efficiency).
-    coach_simulator = VolleyballMatchSimulator(level="High School", gender="Girls")
+    # Example Scenario: High School Girls Match
+    coach_simulator = VolleyballMatchSimulator(
+        level="High School",
+        gender="Girls",
+    )
 
-    # Raw counts, not pre-computed rates -- this is what enables sample-size shrinkage.
-    # "opp_perfect_pass_count"/"opp_total_passes_observed" track how often that serve
-    # type actually let the opponent pass perfectly, out of how many times you logged it.
     player_serve_matrix = {
         "Aggressive Jump Float (Zone 1)": {
-            "total_serves": 40,
-            "ace_count": 5,
-            "error_count": 3,
-            "opp_perfect_pass_count": 10,
-            "opp_total_passes_observed": 32,
+            "ace_rate": 0.12,
+            "error_rate": 0.06,
+            "opp_perfect_pass_rate": 0.25,
         },
         "High-Risk Jump Spin (Zone 6)": {
-            # Small sample on purpose, to demonstrate the low_confidence flag
-            "total_serves": 11,
-            "ace_count": 3,
-            "error_count": 3,
-            "opp_perfect_pass_count": 2,
-            "opp_total_passes_observed": 5,
+            "ace_rate": 0.22,
+            "error_rate": 0.26,
+            "opp_perfect_pass_rate": 0.15,
         },
         "Safe Standing Float (Target Weak Passer)": {
-            "total_serves": 85,
-            "ace_count": 3,
-            "error_count": 2,
-            "opp_perfect_pass_count": 36,
-            "opp_total_passes_observed": 80,
-        }
+            "ace_rate": 0.04,
+            "error_rate": 0.02,
+            "opp_perfect_pass_rate": 0.45,
+        },
     }
 
-    # Current Score: Us 22, Them 23. We are about to serve.
     current_game_state = (22, 23)
     we_are_serving = True
     our_sideout_rate = 0.62
 
     decision = coach_simulator.get_optimal_strategy(
-        current_game_state, player_serve_matrix, we_are_serving, our_sideout_rate)
+        current_game_state,
+        player_serve_matrix,
+        we_are_serving,
+        our_sideout_rate,
+    )
 
-    # --- Output Report ---
-    print(f"--- MATCH DECISION REPORT ({coach_simulator.level} {coach_simulator.gender}) ---")
-    print(f"Score: Us {decision['current_score'][0]} | Opponent {decision['current_score'][1]}")
-    print(f"RECOMMENDED STRATEGY: {decision['recommended_strategy']}")
-    if decision["any_low_confidence"]:
-        print("(Note: at least one strategy above has too few logged serves to fully trust its numbers.)")
-    print()
+    print(
+        f"--- MATCH DECISION REPORT "
+        f"({coach_simulator.level} {coach_simulator.gender}) ---"
+    )
+    print(
+        f"Score: Us {decision['current_score'][0]} | "
+        f"Opponent {decision['current_score'][1]}"
+    )
+    print(f"RECOMMENDED STRATEGY: {decision['recommended_strategy']}\n")
+
     print("Strategy Breakdown:")
-    for strategy, metrics in decision['full_analysis'].items():
-        flag = "  [LOW CONFIDENCE - small sample]" if metrics["low_confidence"] else ""
-        print(f" -> {strategy}{flag}")
-        print(f"    n={metrics['sample_size']} | Rally Win Prob (on our serve): {metrics['point_win_prob']*100:.1f}% "
-              f"| Set Win Expectancy: {metrics['set_win_expectancy']*100:.1f}%")
-        print(f"    Sensitivity (+1pt each): {metrics['sensitivity_per_1pt_improvement']}")
-    print(f"\nExecuting the recommended strategy gives you a {decision['projected_set_win_probability']}% chance to win the set.")
+    for strategy, metrics in decision["full_analysis"].items():
+        print(f" -> {strategy}:")
+        print(
+            f"    Rally Win Prob (on our serve): "
+            f"{metrics['point_win_prob'] * 100:.1f}% | "
+            f"Set Win Expectancy: "
+            f"{metrics['set_win_expectancy'] * 100:.1f}%"
+        )
 
+    print(
+        f"\nExecuting the recommended strategy gives you a "
+        f"{decision['projected_set_win_probability']}% chance to win the set."
+    )
     # --- Validation scaffold demo ---
     # These two "records" are ILLUSTRATIVE PLACEHOLDERS, not real match data. Replace with
     # your own logged sets (final score, who served each key point, observed winner)
