@@ -1,6 +1,6 @@
 from typing import Dict, Optional, Tuple
 
-
+ 
 class VolleyballMatchSimulator:
     """Volleyball rally, set, and serving-strategy decision engine."""
 
