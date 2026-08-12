@@ -1,6 +1,6 @@
 (function () {
     "use strict";
-
+ 
     // Reliable browser download using Blob instead of a data URL.
     window.exportProfilesJSON = function () {
         try {
