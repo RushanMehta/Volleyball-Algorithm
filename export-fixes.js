@@ -1,127 +1,145 @@
 (function () {
     "use strict";
- 
-    // Reliable browser download using Blob instead of a data URL.
+
+    const SCHEMA_VERSION = 6;
+    const PROFILE_FIELDS = ["ts", "fl"];
+
+    function downloadJSON(filename, data) {
+        const blob = new Blob(
+            [JSON.stringify(data, null, 2)],
+            { type: "application/json;charset=utf-8" }
+        );
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+
+        link.href = url;
+        link.download = filename;
+        link.style.display = "none";
+        link.setAttribute("aria-hidden", "true");
+
+        document.body.appendChild(link);
+
+        try {
+            link.click();
+        } finally {
+            setTimeout(function () {
+                link.remove();
+                URL.revokeObjectURL(url);
+            }, 1000);
+        }
+    }
+
+    function isValidCount(value) {
+        return Number.isInteger(value) && value >= 0;
+    }
+
+    function validateServeCounts(values, label) {
+        if (!Array.isArray(values) || values.length !== 6) {
+            throw new Error(`${label} must contain exactly 6 values.`);
+        }
+
+        const counts = values.map(Number);
+
+        if (!counts.every(isValidCount)) {
+            throw new Error(
+                `${label} contains invalid values. All counts must be nonnegative whole numbers.`
+            );
+        }
+
+        const total = counts[0];
+        const categoryTotal = counts.slice(1).reduce(
+            (sum, count) => sum + count,
+            0
+        );
+
+        if (total <= 0) {
+            throw new Error(`${label} total serves must be greater than zero.`);
+        }
+
+        if (categoryTotal !== total) {
+            throw new Error(
+                `${label} category counts (${categoryTotal}) must equal total serves (${total}).`
+            );
+        }
+
+        return counts;
+    }
+
+    function validateProfile(name, profile) {
+        if (!name || !String(name).trim()) {
+            throw new Error("A player profile has an empty name.");
+        }
+
+        if (!profile || typeof profile !== "object") {
+            throw new Error(`Profile "${name}" is not a valid object.`);
+        }
+
+        const ts = validateServeCounts(profile.ts, `${name} Topspin data`);
+        const fl = validateServeCounts(profile.fl, `${name} Float data`);
+
+        return {
+            ts: ts,
+            fl: fl
+        };
+    }
+
     window.exportProfilesJSON = function () {
         try {
-            const payload = {
-                version: window.SCHEMA_VERSION || 6,
+            const roster = typeof window.getRoster === "function"
+                ? window.getRoster()
+                : {};
+
+            const cleaned = {};
+
+            Object.entries(roster).forEach(function ([name, profile]) {
+                cleaned[String(name)] = validateProfile(name, profile);
+            });
+
+            downloadJSON("coaches_volleyball_profiles.json", {
+                version: SCHEMA_VERSION,
                 exportedAt: new Date().toISOString(),
-                players: typeof window.getRoster === "function"
-                    ? window.getRoster()
-                    : {}
-            };
-
-            const blob = new Blob(
-                [JSON.stringify(payload, null, 2)],
-                { type: "application/json;charset=utf-8" }
-            );
-
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-
-            link.href = url;
-            link.download = "coaches_volleyball_profiles.json";
-            link.style.display = "none";
-
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-
-            setTimeout(() => URL.revokeObjectURL(url), 1000);
+                players: cleaned
+            });
         } catch (error) {
+            console.error("Export error:", error);
             alert("Export failed: " + error.message);
-            console.error("Profile export error:", error);
         }
     };
 
-    // Accepts UTF-8 BOMs, spaces, underscores, hyphens, and parentheses.
-    window.normalizeCSVHeader = function (value) {
-        return String(value || "")
-            .replace(/^\uFEFF/, "")
-            .trim()
-            .toLowerCase()
-            .replace(/\([^)]*\)/g, "")
-            .replace(/[_-]+/g, " ")
-            .replace(/\s+/g, " ");
-    };
-
-    // Improve compatibility with GameChanger and other stat exports.
-    if (window.CSV_HEADER_ALIASES) {
-        window.CSV_HEADER_ALIASES.player = [
-            "player",
-            "name",
-            "player name",
-            "athlete",
-            "athlete name"
-        ];
-
-        window.CSV_HEADER_ALIASES.total = [
-            "sa",
-            "serve att",
-            "serve attempts",
-            "serve attempt",
-            "serves",
-            "total serves",
-            "attempts",
-            "s att",
-            "srv att",
-            "service attempts"
-        ];
-
-        window.CSV_HEADER_ALIASES.ace = [
-            "ace",
-            "aces",
-            "sa ace",
-            "service aces",
-            "service ace"
-        ];
-
-        window.CSV_HEADER_ALIASES.error = [
-            "se",
-            "serve err",
-            "serve errors",
-            "errors",
-            "service errors",
-            "service error",
-            "err"
-        ];
-    }
-
-    // Make Import accept older exports and validate each profile safely.
     window.importProfilesJSON = function (event) {
-        const file = event.target.files && event.target.files[0];
+        const input = event && event.target;
+        const file = input && input.files ? input.files[0] : null;
+
         if (!file) return;
 
         const reader = new FileReader();
 
-        reader.onload = function (loadEvent) {
+        reader.onload = function () {
             try {
-                const parsed = JSON.parse(loadEvent.target.result);
+                const parsed = JSON.parse(reader.result);
                 const players = parsed.players || parsed.roster;
 
-                if (!players || typeof players !== "object") {
-                    throw new Error("The file does not contain volleyball profiles.");
+                if (!players || typeof players !== "object" || Array.isArray(players)) {
+                    throw new Error("No player profiles were found.");
                 }
 
-                const cleanedPlayers = {};
+                const cleaned = {};
+                const errors = [];
 
-                Object.entries(players).forEach(([name, profile]) => {
-                    if (
-                        profile &&
-                        Array.isArray(profile.ts) &&
-                        Array.isArray(profile.fl) &&
-                        profile.ts.length === 6 &&
-                        profile.fl.length === 6
-                    ) {
-                        cleanedPlayers[String(name)] = {
-                            ts: profile.ts.map(Number),
-                            fl: profile.fl.map(Number)
-                        };
+                Object.entries(players).forEach(function ([name, profile]) {
+                    try {
+                        cleaned[String(name)] = validateProfile(name, profile);
+                    } catch (error) {
+                        errors.push(error.message);
                     }
                 });
 
-                if (Object.keys(cleanedPlayers).length === 0) {
+                if (errors.length > 0) {
+                    throw new Error(errors.slice(0, 3).join(" "));
+                }
+
+                if (Object.keys(cleaned).length === 0) {
                     throw new Error("No valid player profiles were found.");
                 }
 
@@ -129,21 +147,24 @@
                     throw new Error("Roster storage is unavailable.");
                 }
 
-                window.saveRoster(cleanedPlayers);
+                window.saveRoster(cleaned);
+
                 alert(
-                    `Loaded ${Object.keys(cleanedPlayers).length} player profile` +
-                    `${Object.keys(cleanedPlayers).length === 1 ? "" : "s"}.`
+                    "Loaded " +
+                    Object.keys(cleaned).length +
+                    " valid player profile(s) successfully."
                 );
             } catch (error) {
+                console.error("Import error:", error);
                 alert("Import failed: " + error.message);
-                console.error("Profile import error:", error);
             } finally {
-                event.target.value = "";
+                input.value = "";
             }
         };
 
         reader.onerror = function () {
             alert("The selected file could not be read.");
+            input.value = "";
         };
 
         reader.readAsText(file);
