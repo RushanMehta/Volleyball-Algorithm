@@ -1,1493 +1,354 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Volleyball Serve Optimization Decision Framework</title>
-    
-    <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
-    <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
-
-    <style>
-        :root {
-            --bg-primary: #0f172a;
-            --bg-secondary: #1e293b;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --accent-ts-strong: #1d4ed8;
-            --accent-ts-weak: #3b82f6;
-            --accent-fl-weak: #0d9488;
-            --accent-fl-strong: #0f766e;
-            --border: #334155;
-            --recommend: #22c55e;
-            --warn-low: #ef4444;
-            --warn-med: #f59e0b;
-        }
-        
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: var(--bg-primary); color: var(--text-main); padding: 10px; }
-        
-        .container { max-width: 1300px; margin: 0 auto; background: var(--bg-secondary); padding: 15px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
-        h1 { color: #f1f5f9; text-align: center; margin-bottom: 5px; font-size: 1.6rem; font-weight: 700; }
-        .subtitle { text-align: center; color: #60a5fa; margin-bottom: 20px; font-size: 0.95rem; font-weight: 500; letter-spacing: 0.3px; }
-        .section-title { font-size: 1.05rem; font-weight: bold; color: #f1f5f9; border-bottom: 2px solid var(--border); padding-bottom: 6px; margin-top: 20px; margin-bottom: 12px; }
-        
-        .grid-layout { display: flex; flex-direction: column; gap: 20px; }
-        .column { display: flex; flex-direction: column; gap: 15px; }
-        
-        .count-entry-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 8px; }
-        @media (min-width: 480px) { .count-entry-row { grid-template-columns: repeat(3, 1fr); } }
-        @media (min-width: 768px) { .count-entry-row { grid-template-columns: repeat(6, 1fr); } }
-        
-        .grid-2 { display: grid; grid-template-columns: 1fr; gap: 15px; }
-        @media (min-width: 600px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
-        
-        @media (min-width: 1024px) {
-            body { padding: 20px; }
-            .container { padding: 30px; }
-            h1 { font-size: 1.9rem; }
-            .grid-layout { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 25px; }
-        }
-        
-        .input-group { margin-bottom: 5px; }
-        label { display: block; font-weight: 600; margin-bottom: 4px; font-size: 0.8rem; color: #cbd5e1; }
-        input, select { width: 100%; padding: 10px; background: #0f172a; border: 1px solid var(--border); border-radius: 6px; color: white; font-size: 0.9rem; transition: all 0.2s ease; }
-        
-        /* Error Highlighting */
-        .input-error {
-            border: 2px solid #ef4444 !important;
-            background-color: #2d161a !important;
-            box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
-        }
-        
-        .score-box { background: #0f172a; border: 1px solid var(--border); padding: 12px; border-radius: 8px; text-align: center; }
-        .score-display { font-size: 2.5rem; font-weight: bold; color: white; margin: 2px 0; }
-        .btn-score { background: #334155; color: white; border: none; padding: 8px 16px; font-size: 1.1rem; font-weight: bold; border-radius: 6px; cursor: pointer; margin: 0 4px; }
-        
-        .btn-recommend { width: 100%; background-color: #4f46e5; color: white; border: none; padding: 14px; font-size: 1.05rem; font-weight: bold; border-radius: 8px; cursor: pointer; margin-top: 10px; }
-        .btn-recommend:disabled { background-color: #1e1b4b; color: #64748b; cursor: not-allowed; }
-        .btn-secondary { background-color: #10b981; color: white; border: none; padding: 10px; font-weight: bold; border-radius: 6px; cursor: pointer; }
-        .btn-reset { background-color: #ef4444; color: white; border: none; padding: 10px; font-weight: bold; border-radius: 6px; cursor: pointer; }
-        
-        .result-box { background-color: #0f172a; border: 1px solid var(--border); padding: 15px; margin-top: 20px; border-radius: 8px; }
-        .recommendation-banner { padding: 15px; margin-bottom: 15px; border-radius: 6px; display: flex; flex-direction: column; gap: 8px; }
-        .rec-header { font-size: 1.3rem; font-weight: 800; display: flex; flex-direction: column; gap: 4px; }
-        @media (min-width: 480px) { .rec-header { flex-direction: row; justify-content: space-between; align-items: center; } }
-        
-        .roster-list { max-height: 120px; overflow-y: auto; background: #0f172a; border: 1px solid var(--border); border-radius: 6px; padding: 6px; margin-top: 10px; }
-        .roster-item { display: flex; justify-content: space-between; align-items: center; padding: 6px; font-size: 0.8rem; border-bottom: 1px solid var(--border); }
-        .btn-delete { background: #ef4444; color: white; border: none; border-radius: 4px; padding: 2px 6px; cursor: pointer; }
-        .error-msg { background-color: #7f1d1d; color: #fca5a5; padding: 12px; border-radius: 6px; border: 1px solid #b91c1c; margin-top: 15px; font-weight: bold; display: none; font-size: 0.85rem; }
-        
-        .tab-container { display: flex; overflow-x: auto; gap: 5px; border-bottom: 1px solid var(--border); margin-bottom: 15px; white-space: nowrap; }
-        .tab { padding: 10px 15px; cursor: pointer; background: transparent; border: none; color: var(--text-muted); font-weight: 600; font-size: 0.85rem; }
-        .tab.active { color: white; border-bottom: 2px solid var(--accent-ts-weak); }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-        
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85rem; }
-        th, td { padding: 8px; border: 1px solid var(--border); text-align: left; }
-        th { background: #0f172a; }
-        
-        .badge { padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; display: inline-block; }
-        .badge-low { background: var(--warn-low); color: white; }
-        .badge-med { background: var(--warn-med); color: black; }
-        .badge-high { background: var(--recommend); color: white; }
-        
-        .tornado-bar { height: 14px; background: #3b82f6; border-radius: 3px; display: inline-block; min-width: 4px; }
-        #loading-indicator { display: none; text-align: center; color: var(--warn-med); font-weight: bold; margin-top: 10px; font-size: 0.9rem; }
-
-        .heatmap-scroll { overflow-x: auto; margin-top: 12px; background: #0f172a; padding: 10px; border-radius: 8px; border: 1px solid var(--border); }
-        .heatmap-grid { display: grid; gap: 1px; min-width: 550px; }
-        .heatmap-cell { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 0.55rem; font-weight: bold; border-radius: 1px; color: white; line-height: 1.1; }
-        
-        /* Grid Diverging Color Gradients */
-        .cell-ts-strong { background-color: var(--accent-ts-strong); border: 1px solid #1e40af; }
-        .cell-ts-weak { background-color: var(--accent-ts-weak); border: 1px solid #2563eb; }
-        .cell-fl-weak { background-color: var(--accent-fl-weak); border: 1px solid #0d9488; }
-        .cell-fl-strong { background-color: var(--accent-fl-strong); border: 1px solid #115e59; }
-        
-        /* Split Toss-Up Color */
-        .cell-toss-up { 
-            background: linear-gradient(135deg, var(--accent-ts-weak) 50%, var(--accent-fl-weak) 50%); 
-            border: 1px solid var(--border); 
-        }
-        
-        /* Game Over Score Cell Style */
-        .cell-game-over {
-            background-color: #334155 !important;
-            opacity: 0.35;
-            border: 1px dashed var(--border);
-            color: var(--text-muted);
-        }
-        
-        .cell-header { color: var(--text-muted); font-size: 0.6rem; background: transparent; }
-        
-        .legend { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: 0.75rem; color: var(--text-muted); }
-        .legend-item { display: flex; align-items: center; gap: 5px; }
-        .legend-color { width: 12px; height: 12px; border-radius: 2px; }
-    </style>
-</head>
-<body>
-
-    <div class="container">
-        <h1>Coaches' Serve Optimization Assistant</h1>
-        <div class="subtitle">Smart Match Planning & Decision Engine for High School and Club Volleyball</div>
-        
-        <div class="tab-container">
-            <button class="tab active" onclick="switchTab(event, 'tab-engine')">Interactive Dashboard</button>
-            <button class="tab" onclick="switchTab(event, 'tab-validation')">Validation & Baseline Comparisons</button>
-            <button class="tab" onclick="switchTab(event, 'tab-model-details')">How the Math Works</button>
-        </div>
-
-        <div id="tab-engine" class="tab-content active">
-            <div class="grid-layout">
-                <div class="column">
-                    <div class="section-title">1. Your Server's Practice & Game Stats</div>
-                    
-                    <div class="input-group" style="max-width: 300px; margin-bottom: 15px;">
-                        <label>Player Name</label>
-                        <input type="text" id="p_name" placeholder="e.g., Sarah">
-                    </div>
-                    
-                    <label style="font-weight:bold; color:var(--accent-ts-weak)">Topspin Serve Performance Logs</label>
-                    <div class="count-entry-row" id="ts-fields-group">
-                        <div class="input-group"><label>Total Serves</label><input type="number" id="p_ts_n" value="150" min="1"></div>
-                        <div class="input-group"><label>Aces</label><input type="number" id="p_ts_ace" value="22" min="0"></div>
-                        <div class="input-group"><label>Errors</label><input type="number" id="p_ts_err" value="38" min="0"></div>
-                        <div class="input-group"><label>Poor Pass Cnt</label><input type="number" id="p_ts_poor" value="45" min="0"></div>
-                        <div class="input-group"><label>Avg Pass Cnt</label><input type="number" id="p_ts_avg" value="30" min="0"></div>
-                        <div class="input-group"><label>Perf Pass Cnt</label><input type="number" id="p_ts_perf" value="15" min="0"></div>
-                    </div>
-                    
-                    <label style="font-weight:bold; color:var(--accent-fl-weak)">Float Serve Performance Logs</label>
-                    <div class="count-entry-row" id="fl-fields-group">
-                        <div class="input-group"><label>Total Serves</label><input type="number" id="p_fl_n" value="220" min="1"></div>
-                        <div class="input-group"><label>Aces</label><input type="number" id="p_fl_ace" value="11" min="0"></div>
-                        <div class="input-group"><label>Errors</label><input type="number" id="p_fl_err" value="11" min="0"></div>
-                        <div class="input-group"><label>Poor Pass Cnt</label><input type="number" id="p_fl_poor" value="33" min="0"></div>
-                        <div class="input-group"><label>Avg Pass Cnt</label><input type="number" id="p_fl_avg" value="99" min="0"></div>
-                        <div class="input-group"><label>Perf Pass Cnt</label><input type="number" id="p_fl_perf" value="66" min="0"></div>
-                    </div>
-
-                    <div class="grid-2" style="margin-top: 10px;">
-                        <button class="btn-secondary" onclick="addPlayer()">Save Player Stats</button>
-                        <button class="btn-reset" onclick="resetEngineState()">Clear Saved Roster</button>
-                    </div>
-                    
-                    <div class="roster-list" id="roster-view"></div>
-                    
-                    <div class="grid-2">
-                        <button class="btn-secondary" style="background:#475569;" onclick="exportProfilesJSON()">Export (Save to Computer)</button>
-                        <input type="file" id="import-file" style="display:none;" onchange="importProfilesJSON(event)">
-                        <button class="btn-secondary" style="background:#475569;" onclick="document.getElementById('import-file').click()">Import (Load from Computer)</button>
-                    </div>
-
-                    <div style="margin-top:14px; padding:10px; background:#0f172a; border:1px solid var(--border); border-radius:8px;">
-                        <label style="font-weight:bold; margin-bottom:6px;">Import Serve Counts from a Stat-Keeping App (e.g. GameChanger CSV)</label>
-                        <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px;">
-                            Matches common column headers (Player/Name, Serve Att/SA, Aces, Errors) rather than one fixed schema, since exact export formats vary by app and account type.
-                            These apps track total serves/aces/errors but not opponent pass quality — the Poor/Avg/Perfect pass fields are filled with a placeholder split you should correct from film or a charting tool.
-                        </p>
-                        <div class="count-entry-row" style="grid-template-columns: 1fr 1fr;">
-                            <div class="input-group"><label>Import Into</label>
-                                <select id="csv-import-target"><option value="ts">Topspin fields</option><option value="fl">Float fields</option></select>
-                            </div>
-                            <div class="input-group"><label>&nbsp;</label>
-                                <input type="file" id="csv-import-file" accept=".csv" onchange="handleCSVImport(event)">
-                            </div>
-                        </div>
-                        <div class="input-group" id="csv-player-picker-wrap" style="display:none;">
-                            <label>Multiple players found — choose one to load</label>
-                            <select id="csv-player-picker" onchange="applyCSVPlayerSelection()"></select>
-                        </div>
-                        <div id="csv-import-status" style="font-size:0.8rem; margin-top:6px;"></div>
-                    </div>
-
-                    <div class="section-title">2. Opponent Performance Stats</div>
-                    <div class="grid-2">
-                        <div class="input-group"><label>Opponent Attack Win % on a POOR pass</label><input type="number" id="opp_kill_poor" value="38" min="0" max="100"></div>
-                        <div class="input-group"><label>Opponent Attack Win % on an AVERAGE pass</label><input type="number" id="opp_kill_average" value="48" min="0" max="100"></div>
-                    </div>
-                    <div class="grid-2">
-                        <div class="input-group"><label>Opponent Attack Win % on a PERFECT pass</label><input type="number" id="opp_kill_perfect" value="64" min="0" max="100"></div>
-                        <div class="input-group"><label>Our Side-Out Probability (Win receive point) %</label><input type="number" id="our_sideout_rate" value="65" min="0" max="100"></div>
-                    </div>
-
-                    <div class="section-title">3. Pressure / Clutch Sensitivity <span style="font-weight:normal; color:var(--text-muted); font-size:0.75rem;">(optional)</span></div>
-                    <p style="font-size:0.78rem; color:var(--text-muted); margin-bottom:8px;">
-                        Real serve execution can get shakier as leverage rises. Pressure here is measured as <em>true point leverage</em> — how much winning vs. losing the current rally swings the set-win probability (computed from the model's own value function, normalized so the highest-leverage score is 100%). Set how much each serve's error rate should climb at maximum leverage — 0% means that serve is treated as pressure-proof.
-                    </p>
-                    <div class="grid-2">
-                        <div class="input-group"><label>Topspin Error-Rate Increase at Max Leverage (%)</label><input type="number" id="press_amp_ts" value="15" min="0" max="100"></div>
-                        <div class="input-group"><label>Float Error-Rate Increase at Max Leverage (%)</label><input type="number" id="press_amp_fl" value="0" min="0" max="100"></div>
-                    </div>
-                </div>
-
-                <div class="column">
-                    <div class="section-title">4. Current Match Context & Score</div>
-                    <div class="grid-2">
-                        <div class="input-group">
-                            <label>Active Server Profile</label>
-                            <select id="active-player" onchange="loadActivePlayerStats()"></select>
-                        </div>
-                        <div class="input-group">
-                            <label>Current Serve Possession</label>
-                            <select id="current_poss" style="border: 2px solid #f59e0b;">
-                                <option value="us">Our Team is Serving</option>
-                                <option value="them">Opponent Team is Serving</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="grid-2">
-                        <div class="score-box">
-                            <label style="color:var(--accent-ts-weak); font-weight:bold;">OUR SCORE</label>
-                            <div class="score-display" id="disp_us">17</div>
-                            <button class="btn-score" onclick="adjustScore('us', 1)">+</button>
-                            <button class="btn-score" onclick="adjustScore('us', -1)">-</button>
-                            <input type="hidden" id="score_us" value="17">
-                        </div>
-                        <div class="score-box">
-                            <label style="color:#ef4444; font-weight:bold;">OPPONENT SCORE</label>
-                            <div class="score-display" id="disp_them">17</div>
-                            <button class="btn-score" onclick="adjustScore('them', 1)">+</button>
-                            <button class="btn-score" onclick="adjustScore('them', -1)">-</button>
-                            <input type="hidden" id="score_them" value="17">
-                        </div>
-                    </div>
-                    
-                    <button id="calc-opt-btn" class="btn-recommend" py-click="execute_optimization_sequence">Calculate Best Serve Option</button>
-                    <div id="loading-indicator">Computing optimal strategies over 27 score coordinates...</div>
-                    <div id="validation-error-box" class="error-msg"></div>
-                </div>
-            </div>
-
-            <div class="result-box">
-                <div id="output-rec">
-                    <div style="color: var(--text-muted); text-align: center; padding: 20px;">Input performance stats and calculate to show recommended decisions here.</div>
-                </div>
-            </div>
-
-            <div class="section-title" id="policy-map-header" style="display:none;">Optimal Serving Policy Map & Margin of Advantage (Topspin vs. Float)</div>
-            <div class="heatmap-scroll" id="policy-map-container" style="display:none;">
-                <div class="legend">
-                    <div class="legend-item"><div class="legend-color cell-ts-strong"></div><strong>TS Strong</strong> (Topspin Wins by &ge; 2% Equity)</div>
-                    <div class="legend-item"><div class="legend-color cell-ts-weak"></div><strong>TS Mild</strong> (Topspin Wins by &lt; 2% Equity)</div>
-                    <div class="legend-item"><div class="legend-color cell-toss-up"></div><strong>Toss-Up / Equal</strong> (Flat 0.0% Difference)</div>
-                    <div class="legend-item"><div class="legend-color cell-fl-weak"></div><strong>FL Mild</strong> (Float Wins by &lt; 2% Equity)</div>
-                    <div class="legend-item"><div class="legend-color cell-fl-strong"></div><strong>FL Strong</strong> (Float Wins by &ge; 2% Equity)</div>
-                    <div class="legend-item"><div class="legend-color cell-game-over" style="width:12px; height:12px; border-radius:2px;"></div><strong>Set Over</strong> (Grayed out scores)</div>
-                </div>
-                <div class="heatmap-grid" id="policy-heatmap" style="margin-top: 15px;"></div>
-            </div>
-        </div>
-
-        <div id="tab-validation" class="tab-content">
-            <div class="section-title">Strategy Benchmarks & Model Self-Checks</div>
-            <p style="margin-bottom: 15px; color: var(--text-muted);">
-                The simulation cross-check and strategy comparisons below are computed directly from this model (Monte Carlo re-simulation of its own policy). The prediction-concordance row uses a small set of illustrative synthetic score scenarios to demonstrate how the check works — it is <strong>not</strong> real recorded match data, and shouldn't be read as evidence the model predicts real outcomes. Genuine validation requires testing against actual logged matches, which this tool does not yet include.
-            </p>
-            <div id="output-validation-metrics">
-                <p style="color:var(--text-muted)">Perform an evaluation calculation on the dashboard to output comparison charts.</p>
-            </div>
-        </div>
-        <!-- This tool applies to any level of play -- High School, Club, College, or Pro -- since opponent
-             attack efficiency (poor/average/perfect-pass kill %) is entered directly from what you observe,
-             rather than assumed from a fixed level/gender table. -->
-
-        <div id="tab-model-details" class="tab-content">
-            <div class="section-title">How the Math and Predictions Work</div>
-            <p>This system models game progressions step-by-step using <strong>Dynamic Programming with Rally Scoring Rules</strong>.</p>
-            
-            <h3 style="margin-top:15px; margin-bottom:5px;">1. The Core Equation</h3>
-            <p>At any score, the model computes the odds of winning the set by choosing the serve action that yields the highest mathematical probability of success.</p>
-
-            <h3 style="margin-top:15px; margin-bottom:5px;">2. Leverage-Based Pressure</h3>
-            <p>Pressure at a score is no longer a hand-tuned heuristic. The engine first solves the value function with no pressure adjustment, then reads off the <em>point leverage</em> at every score:</p>
-            <blockquote>
-                <strong>leverage(u, t) = | V(u+1, t) &minus; V(u, t+1) |</strong><br>
-                the absolute swing in set-win probability caused by winning vs. losing the current rally. This is normalized so the highest-leverage score in the set is 100%. Each serve's error rate is then scaled up in proportion to this leverage, so errors climb exactly where the point matters most — and only there. This is the same leverage-index concept used in baseball/sabermetrics, applied to rally scoring.
-            </blockquote>
-            
-            <div class="section-title">Explicit Boundary & Modeling Simplifications (Academic Disclaimers)</div>
-            <blockquote>
-                <strong>1. First-Order Rally Approximation:</strong><br>
-                Real match play has infinite back-and-forth options (Serve, Pass, Set, Attack, Dig, Block, etc.). For mathematical simplicity, this system condenses the rally into the immediate pass quality and the opponent's average offensive success off that pass. This represents a highly effective first-order projection.
-            </blockquote>
-            <blockquote>
-                <strong>2. Constant Opponent Defense:</strong><br>
-                This model assumes opponent passing and attack rates remain steady. It does not factor in opponent adjustments, fatigue, or rotation changes.
-            </blockquote>
-            <blockquote>
-                <strong>3. Optimization Boundary:</strong><br>
-                The outputs are optimized under these specific model constraints. Real-world coach intuition and player confidence should always supplement these computer recommendations.
-            </blockquote>
-        </div>
-    </div>
-
-    <script>
-        const SCHEMA_VERSION = 6;
-        const FIXED_CAP = 27;
-
-        const dom = {
-            p_name: document.getElementById("p_name"), p_ts_n: document.getElementById("p_ts_n"), p_ts_ace: document.getElementById("p_ts_ace"),
-            p_ts_err: document.getElementById("p_ts_err"), p_ts_poor: document.getElementById("p_ts_poor"), p_ts_avg: document.getElementById("p_ts_avg"),
-            p_ts_perf: document.getElementById("p_ts_perf"), p_fl_n: document.getElementById("p_fl_n"), p_fl_ace: document.getElementById("p_fl_ace"),
-            p_fl_err: document.getElementById("p_fl_err"), p_fl_poor: document.getElementById("p_fl_poor"), p_fl_avg: document.getElementById("p_fl_avg"),
-            p_fl_perf: document.getElementById("p_fl_perf"), active_player: document.getElementById("active-player"), roster_view: document.getElementById("roster-view")
-        };
-
-        let defaultRoster = {
-            "Elite Target A": {
-                ts: [150, 22, 38, 45, 30, 15],
-                fl: [220, 11, 11, 33, 99, 66]
-            }
-        };
-
-        function switchTab(evt, id) {
-            document.querySelectorAll('.tab-content').forEach(e => e.classList.remove('active'));
-            document.querySelectorAll('.tab').forEach(e => e.classList.remove('active'));
-            document.getElementById(id).classList.add('active');
-            evt.currentTarget.classList.add('active');
-        }
-        function getRoster() {
-            let d = localStorage.getItem("vb_v3_2_roster");
-            if (d) {
-                try {
-                    let parsed = JSON.parse(d);
-                    if (parsed.version === SCHEMA_VERSION && parsed.players) return parsed.players;
-                } catch(e) {}
-            }
-            return defaultRoster;
-        }
-        function saveRoster(players) {
-            let wrapper = { version: SCHEMA_VERSION, players: players };
-            localStorage.setItem("vb_v3_2_roster", JSON.stringify(wrapper));
-            updateRosterUI();
-        }
-        function getSampleBadge(n) {
-            if (n < 50) return `<span class="badge badge-low">Low Stats (n=${n})</span>`;
-            if (n < 200) return `<span class="badge badge-med">Med Stats (n=${n})</span>`;
-            return `<span class="badge badge-high">High Stats (n=${n})</span>`;
-        }
-        function addPlayer() {
-            let nameInput = dom.p_name.value.trim();
-            if(!nameInput) return alert("Valid profile label required.");
-            let r = getRoster();
-            if (r[nameInput] && !confirm(`Profile "${nameInput}" already exists. Overwrite?`)) return;
-            
-            r[nameInput] = {
-                ts: [parseInt(dom.p_ts_n.value), parseInt(dom.p_ts_ace.value), parseInt(dom.p_ts_err.value), parseInt(dom.p_ts_poor.value), parseInt(dom.p_ts_avg.value), parseInt(dom.p_ts_perf.value)],
-                fl: [parseInt(dom.p_fl_n.value), parseInt(dom.p_fl_ace.value), parseInt(dom.p_fl_err.value), parseInt(dom.p_fl_poor.value), parseInt(dom.p_fl_avg.value), parseInt(dom.p_fl_perf.value)]
-            };
-            saveRoster(r);
-            dom.p_name.value = "";
-        }
-        function deletePlayer(playerName) {
-            let r = getRoster(); delete r[playerName]; saveRoster(r);
-        }
-        function adjustScore(t, v) {
-            let e = document.getElementById("score_" + t);
-            let d = document.getElementById("disp_" + t);
-            let n = Math.max(0, parseInt(e.value) + v);
-            if (n > FIXED_CAP) n = FIXED_CAP;
-            e.value = n; d.textContent = n;
-        }
-        function loadActivePlayerStats() {
-            let s = dom.active_player.value;
-            let p = getRoster()[s];
-            if(p) {
-                dom.p_ts_n.value = p.ts[0]; dom.p_ts_ace.value = p.ts[1]; dom.p_ts_err.value = p.ts[2]; dom.p_ts_poor.value = p.ts[3]; dom.p_ts_avg.value = p.ts[4]; dom.p_ts_perf.value = p.ts[5];
-                dom.p_fl_n.value = p.fl[0]; dom.p_fl_ace.value = p.fl[1]; dom.p_fl_err.value = p.fl[2]; dom.p_fl_poor.value = p.fl[3]; dom.p_fl_avg.value = p.fl[4]; dom.p_fl_perf.value = p.fl[5];
-            }
-            // Clear previous highlights upon change
-            document.querySelectorAll("input").forEach(el => el.classList.remove("input-error"));
-        }
-        function updateRosterUI() {
-            let r = getRoster();
-            dom.active_player.innerHTML = ""; dom.roster_view.innerHTML = "";
-            for(let p in r) {
-                let o = document.createElement("option"); o.value = p; o.textContent = p; dom.active_player.appendChild(o);
-                
-                let item = document.createElement("div"); item.className = "roster-item";
-                let labelSpan = document.createElement("span");
-                labelSpan.innerHTML = `<strong>${p}</strong> | TS Data: ${getSampleBadge(r[p].ts[0])} | FL Data: ${getSampleBadge(r[p].fl[0])}`;
-                
-                let delBtn = document.createElement("button");
-                delBtn.className = "btn-delete"; delBtn.textContent = "X"; delBtn.dataset.player = p;
-                delBtn.onclick = function() { deletePlayer(this.dataset.player); };
-                
-                item.appendChild(labelSpan); item.appendChild(delBtn); dom.roster_view.appendChild(item);
-            }
-            if(dom.active_player.options.length > 0) loadActivePlayerStats();
-        }
-        function exportProfilesJSON() {
-            let payload = { version: SCHEMA_VERSION, players: getRoster() };
-            let dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(payload));
-            let downloadAnchor = document.createElement('a');
-            downloadAnchor.setAttribute("href", dataStr); downloadAnchor.setAttribute("download", `coaches_volleyball_profiles.json`);
-            document.body.appendChild(downloadAnchor); downloadAnchor.click(); downloadAnchor.remove();
-        }
-        function importProfilesJSON(event) {
-            let file = event.target.files[0];
-            if (!file) return;
-            let reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    let parsed = JSON.parse(e.target.result);
-                    if (parsed.version === SCHEMA_VERSION && parsed.players && typeof parsed.players === 'object') {
-                        saveRoster(parsed.players);
-                        alert("Profiles loaded successfully!");
-                    } else { alert("Data compatibility issue."); }
-                } catch(err) { alert("File read error."); }
-            };
-            reader.readAsText(file);
-        }
-
-        // ---- CSV import from stat-keeping apps (e.g. GameChanger) ----
-        // Note: GameChanger's own docs confirm a season-stats CSV export for
-        // baseball/softball/basketball specifically; a fixed, documented CSV schema for
-        // volleyball wasn't something that could be verified here. This matches on common
-        // volleyball box-score header wording instead of one exact assumed schema.
-        const CSV_HEADER_ALIASES = {
-            player: ['player', 'name', 'player name', 'athlete'],
-            total: ['sa', 'serve att', 'serve attempts', 'serves', 'attempts', 'total serves', 's att', 'srv att'],
-            ace: ['ace', 'aces', 'sa-ace', 'service aces'],
-            error: ['se', 'serve err', 'serve errors', 'errors', 'service errors', 'err'],
-        };
-
-        function parseCSVText(text) {
-            // Minimal CSV parser: handles quoted fields containing commas.
-            const rows = [];
-            let row = [], field = '', inQuotes = false;
-            for (let i = 0; i < text.length; i++) {
-                const c = text[i];
-                if (inQuotes) {
-                    if (c === '"') {
-                        if (text[i+1] === '"') { field += '"'; i++; } else { inQuotes = false; }
-                    } else { field += c; }
-                } else {
-                    if (c === '"') inQuotes = true;
-                    else if (c === ',') { row.push(field); field = ''; }
-                    else if (c === '\n' || c === '\r') {
-                        if (c === '\r' && text[i+1] === '\n') i++;
-                        row.push(field); field = '';
-                        if (row.length > 1 || row[0] !== '') rows.push(row);
-                        row = [];
-                    } else { field += c; }
-                }
-            }
-            if (field !== '' || row.length > 0) { row.push(field); rows.push(row); }
-            return rows;
-        }
-
-        function findCSVColumn(headerMap, aliases) {
-            for (const alias of aliases) {
-                if (alias in headerMap) return headerMap[alias];
-            }
-            return null;
-        }
-
-        function handleCSVImport(event) {
-            const file = event.target.files[0];
-            const status = document.getElementById("csv-import-status");
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const rows = parseCSVText(e.target.result);
-                    if (rows.length < 2) throw new Error("File has no data rows.");
-                    const rawHeaders = rows[0];
-                    const headerMap = {};
-                    rawHeaders.forEach((h, idx) => { headerMap[h.trim().toLowerCase()] = idx; });
-
-                    const idxPlayer = findCSVColumn(headerMap, CSV_HEADER_ALIASES.player);
-                    const idxTotal = findCSVColumn(headerMap, CSV_HEADER_ALIASES.total);
-                    const idxAce = findCSVColumn(headerMap, CSV_HEADER_ALIASES.ace);
-                    const idxError = findCSVColumn(headerMap, CSV_HEADER_ALIASES.error);
-
-                    const missing = [];
-                    if (idxPlayer === null) missing.push("player name");
-                    if (idxTotal === null) missing.push("total serves");
-                    if (idxAce === null) missing.push("aces");
-                    if (idxError === null) missing.push("errors");
-                    if (missing.length > 0) {
-                        throw new Error(`Couldn't find columns for: ${missing.join(", ")}. Detected headers: ${rawHeaders.join(", ")}`);
-                    }
-
-                    const players = {};
-                    for (let i = 1; i < rows.length; i++) {
-                        const r = rows[i];
-                        if (!r || r.length === 0) continue;
-                        const name = (r[idxPlayer] || "").trim();
-                        if (!name) continue;
-                        const total = parseInt(r[idxTotal], 10);
-                        const ace = parseInt(r[idxAce], 10);
-                        const err = parseInt(r[idxError], 10);
-                        if (isNaN(total) || isNaN(ace) || isNaN(err)) continue;
-                        players[name] = { total, ace, err };
-                    }
-
-                    const names = Object.keys(players);
-                    if (names.length === 0) throw new Error("No valid player rows found.");
-
-                    window._csvParsedPlayers = players;
-                    const picker = document.getElementById("csv-player-picker");
-                    const pickerWrap = document.getElementById("csv-player-picker-wrap");
-                    picker.innerHTML = "";
-                    names.forEach(n => {
-                        const o = document.createElement("option"); o.value = n; o.textContent = n; picker.appendChild(o);
-                    });
-
-                    if (names.length > 1) {
-                        pickerWrap.style.display = "block";
-                        applyCSVPlayerSelection();
-                        status.style.color = "#60a5fa";
-                        status.innerText = `Found ${names.length} players. Showing "${names[0]}" — use the dropdown above to switch, then Save Player Stats to add each to your roster.`;
-                    } else {
-                        pickerWrap.style.display = "none";
-                        loadCSVPlayerIntoForm(names[0]);
-                        status.style.color = "#22c55e";
-                        status.innerText = `Loaded "${names[0]}" into the form below. Review the Poor/Avg/Perfect pass placeholders, then Save Player Stats.`;
-                    }
-                } catch (err) {
-                    status.style.color = "#ef4444";
-                    status.innerText = "Import error: " + err.message;
-                }
-            };
-            reader.readAsText(file);
-        }
-
-        function applyCSVPlayerSelection() {
-            const picker = document.getElementById("csv-player-picker");
-            if (picker.value) loadCSVPlayerIntoForm(picker.value);
-        }
-
-        function loadCSVPlayerIntoForm(name) {
-            const rec = window._csvParsedPlayers[name];
-            if (!rec) return;
-            const target = document.getElementById("csv-import-target").value; // "ts" or "fl"
-            const inPlay = Math.max(0, rec.total - rec.ace - rec.err);
-
-            dom.p_name.value = name;
-
-            const prefix = "p_" + target + "_";
-            document.getElementById(prefix + "n").value = rec.total;
-            document.getElementById(prefix + "ace").value = rec.ace;
-            document.getElementById(prefix + "err").value = rec.err;
-            // GameChanger-style exports don't track opponent pass quality. All in-play
-            // serves are placed in "Avg Pass" as an explicit placeholder -- not a real
-            // estimate -- purely so the counts sum correctly. Replace from film/charting.
-            document.getElementById(prefix + "poor").value = 0;
-            document.getElementById(prefix + "avg").value = inPlay;
-            document.getElementById(prefix + "perf").value = 0;
-
-            clearInputErrors();
-        }
-        
-        // HELPER TO CLEAR RUNTIME ERRORS
-        function clearInputErrors() {
-            document.querySelectorAll("input").forEach(el => el.classList.remove("input-error"));
-        }
-
-        // TRIGGER VISUAL ERROR ON FIELDS
-        function highlightInputErrors(idsArray) {
-            clearInputErrors();
-            idsArray.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.classList.add("input-error");
-            });
-            // Focus on first problematic field and scroll to view
-            if(idsArray.length > 0) {
-                const target = document.getElementById(idsArray[0]);
-                if (target) {
-                    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    target.focus();
-                }
-            }
-        }
-
-        function handleEngineCallback(payload) {
-            // Accept either a parsed object (new safe channel) or a JSON string (legacy).
-            const data = (typeof payload === 'string') ? JSON.parse(payload) : payload;
-            
-            // Clean interface states since calculation completed
-            clearInputErrors();
-
-            const isTossUp = Math.abs(data.ts_rally - data.fl_rally) < 1e-6;
-            
-            let color = "var(--accent-fl-weak)";
-            let best_str = "FLOAT";
-            if (!isTossUp && data.best_action === 0) {
-                color = "var(--accent-ts-weak)";
-                best_str = "TOPSPIN";
-            } else if (isTossUp) {
-                color = "linear-gradient(135deg, var(--accent-ts-weak) 50%, var(--accent-fl-weak) 50%)";
-                best_str = "TOSS-UP (EQUAL ADVANTAGE)";
-            }
-            
-            let out_html = `
-            <div class='recommendation-banner' style='background: ${color}; color: white;'>
-                <div class='rec-header'>
-                    <span>RECOMMENDED SERVE ACTION: ${best_str}</span>
-                    <span style='font-size:1.1rem; opacity:0.9;'>Current Score: ${data.score_us}–${data.score_them} (${data.server_state === 0 ? 'Our Serve' : 'Opponent Serve'})</span>
-                </div>
-                <div>Based on mathematical modeling, <strong>${best_str}</strong> yields the optimal play expectancy for this exact score.</div>
-            </div>
-            ${(data.ts_low_confidence || data.fl_low_confidence) ? `
-            <div style='background:#7c2d12; color:#fed7aa; padding:10px 14px; border-radius:6px; margin-bottom:15px; font-size:0.85rem;'>
-                ⚠️ <strong>Small sample warning:</strong>
-                ${data.ts_low_confidence ? `Topspin log has only ${data.ts_n} serves` : ''}
-                ${(data.ts_low_confidence && data.fl_low_confidence) ? ' and ' : ''}
-                ${data.fl_low_confidence ? `Float log has only ${data.fl_n} serves` : ''}
-                (below the ${data.min_reliable_sample}-serve reliability threshold). Rates below are shrunk toward a generic prior to compensate, but treat this recommendation cautiously until more serves are logged.
-            </div>` : ''}
-            <div class='grid-2' style='margin-top:15px;'>
-                <div>
-                    <h4>Expected Set Win Chance</h4>
-                    <p>Current Predicted Chance to Win Set: <strong style='color:#22c55e; font-size:1.4rem;'>${(data.resolved_equity * 100).toFixed(2)}%</strong></p>
-
-                    <h4 style='margin-top:15px;'>Leverage at This Score</h4>
-                    <p style='font-size:0.85rem; color:var(--text-muted);'>${(data.pressure_at_score * 100).toFixed(0)}% of max leverage (raw swing: ${ (data.leverage_at_score * 100).toFixed(2)} pts of set-win probability) — the actual stakes of this point, measured from how much it swings the set-win probability. This is what shifts the error rates below away from your season averages.</p>
-
-                    <h4 style='margin-top:15px;'>Rally Win % Expectations (adjusted for leverage at this score)</h4>
-                    <table style='margin-top:5px;'>
-                        <tr><td>Serve Type</td><td>At This Score</td><td>Season Avg (shrunk)</td><td>Season Avg (raw, unshrunk)</td></tr>
-                        <tr><td>Topspin${data.ts_low_confidence ? ' ⚠️' : ''}</td><td>${(data.ts_rally * 100).toFixed(1)}%</td><td>${(data.ts_rally_base * 100).toFixed(1)}%</td><td>${(data.ts_rally_raw_unshrunk * 100).toFixed(1)}%</td></tr>
-                        <tr><td>Float${data.fl_low_confidence ? ' ⚠️' : ''}</td><td>${(data.fl_rally * 100).toFixed(1)}%</td><td>${(data.fl_rally_base * 100).toFixed(1)}%</td><td>${(data.fl_rally_raw_unshrunk * 100).toFixed(1)}%</td></tr>
-                    </table>
-                    <p style='font-size:0.75rem; color:var(--text-muted); margin-top:4px;'>"Shrunk" pulls small samples toward a generic prior so a lucky/unlucky handful of serves isn't treated as a settled tendency (n=${data.ts_n} topspin, n=${data.fl_n} float logged). "Raw" is the literal observed rate with no adjustment.</p>
-                </div>
-                <div>
-                    <h4>Skill Sensitivity Analysis — ${data.sens_serve_label} Serve (Impact of 1% Improvement)</h4>
-                    <p style='font-size:0.85rem; color:var(--text-muted); margin-bottom:10px;'>This shows how much your chance to win the set improves (+%) if you increase each specific ${data.sens_serve_label.toLowerCase()} serving outcome by 1% (renormalized against the other outcomes for that serve type, with leverage held fixed). Shown for the serve currently recommended at this score:</p>
-            `;
-            
-            const labels = ["Increase Ace Rate", "Reduce Error Rate", "Force More Poor Passes", "Force More Average Passes", "Force More Perfect Passes"];
-            let max_sens = Math.max(...data.sens_deltas.map(Math.abs), 1.0e-5);
-            
-            data.sens_deltas.forEach((delta, idx) => {
-                let width_pct = Math.min(100, Math.floor((Math.abs(delta) / max_sens) * 100));
-                let sign = delta >= 0 ? "+" : "";
-                let bar_color = delta >= 0 ? "var(--recommend)" : "var(--warn-low)";
-                out_html += `
-                <div style='margin-bottom:6px; font-size:0.85rem;'>
-                    <div style='display:flex; justify-content:space-between; margin-bottom:2px;'>
-                        <span>${labels[idx]}</span><strong>${sign}${(delta * 100).toFixed(3)}%</strong>
-                    </div>
-                    <div class='tornado-bar' style='width:${width_pct}%; background:${bar_color};'></div>
-                </div>
-                `;
-            });
-            
-            out_html += "</div></div>";
-            document.getElementById("output-rec").innerHTML = out_html;
-
-            let val_html = `
-            <h3>1. Scientific System Performance</h3>
-            <table>
-                <thead>
-                    <tr><th>Performance Metric</th><th>Value Output</th></tr>
-                </thead>
-                <tbody>
-                    <tr><td>Dynamic Programming Win Estimation</td><td><strong>${(data.resolved_equity * 100).toFixed(2)}%</strong> Expected Win Rate</td></tr>
-                    <tr><td>Simulation Verification Result</td><td><strong>${(data.mc_equity * 100).toFixed(2)}%</strong> Expected Win Rate</td></tr>
-                    <tr><td>Simulation Convergence Validation Margin</td><td><span class='badge badge-high'>${(Math.abs(data.resolved_equity - data.mc_equity) * 100).toFixed(2)}% Difference</span></td></tr>
-                    <tr style='background:#1e293b; font-weight:bold;'>
-                        <td>Prediction Concordance on Synthetic Test Scenarios <span style='font-weight:normal; color:var(--text-muted); font-size:0.75rem;'>(illustrative, not real matches)</span></td>
-                        <td><span class='badge badge-high' style='font-size:0.85rem;'>${(data.dataset_accuracy * 100).toFixed(1)}% Pred Concordance</span></td>
-                    </tr>
-                    <tr><td>Topspin Confidence Interval Limits (95% Certainty Bounds)</td><td>${(data.ts_low * 100).toFixed(1)}% – ${(data.ts_high * 100).toFixed(1)}% expected spread</td></tr>
-                    <tr><td>Float Confidence Interval Limits (95% Certainty Bounds)</td><td>${(data.fl_low * 100).toFixed(1)}% – ${(data.fl_high * 100).toFixed(1)}% expected spread</td></tr>
-                    <tr><td>Calculated Coordinates on Matrix Pathing</td><td>${data.states_allocated} states computed</td></tr>
-                </tbody>
-            </table>
-
-            <h3 style="margin-top: 25px;">2. Play-Strategy Baseline Benchmarks (Set Win Rate comparison over ${data.trials.toLocaleString()} simulated paths)</h3>
-            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">Pitting this model's recommendations against standard strategies:</p>
-            <table>
-                <thead>
-                    <tr><th>Tested Strategy Pattern</th><th>Set Win Probability</th><th>Improvement Advantage Using Model</th></tr>
-                </thead>
-                <tbody>
-                    <tr style="background: rgba(34, 197, 94, 0.15); font-weight: bold;">
-                        <td>Dynamic Programming Strategy [Calculated Optimal Decisions]</td>
-                        <td>${(data.mc_equity * 100).toFixed(2)}%</td>
-                        <td><span class="badge badge-high">Optimal Target Baseline</span></td>
-                    </tr>
-                    <tr>
-                        <td>Traditional Coaching Heuristic [Topspin when ahead, Float when trailing]</td>
-                        <td>${(data.mc_naive_equity * 100).toFixed(2)}%</td>
-                        <td>+${((data.mc_equity - data.mc_naive_equity) * 100).toFixed(2)}%</td>
-                    </tr>
-                    <tr>
-                        <td>Fixed Serve Strategy: Always Serve Topspin</td>
-                        <td>${(data.mc_always_ts_equity * 100).toFixed(2)}%</td>
-                        <td>+${((data.mc_equity - data.mc_always_ts_equity) * 100).toFixed(2)}%</td>
-                    </tr>
-                    <tr>
-                        <td>Fixed Serve Strategy: Always Serve Float</td>
-                        <td>${(data.mc_always_fl_equity * 100).toFixed(2)}%</td>
-                        <td>+${((data.mc_equity - data.mc_always_fl_equity) * 100).toFixed(2)}%</td>
-                    </tr>
-                </tbody>
-            </table>
-            `;
-            document.getElementById("output-validation-metrics").innerHTML = val_html;
-            
-            renderPolicyHeatmap(data.flat_policy, data.flat_delta_v, data.deuce_cap, data.server_name);
-        }
-
-        function renderPolicyHeatmap(flatPolicyArray, flatDeltaVArray, deuceCap, serverName) {
-            const hContainer = document.getElementById("policy-map-container");
-            const hHeader = document.getElementById("policy-map-header");
-            const grid = document.getElementById("policy-heatmap");
-            
-            grid.innerHTML = "";
-            hContainer.style.display = "block"; 
-            
-            hHeader.style.display = "block";
-            hHeader.innerHTML = `${serverName}'s Optimal Serving Policy Map & Margin of Advantage (Topspin vs. Float)`;
-            
-            grid.style.gridTemplateColumns = `repeat(${deuceCap + 2}, 1fr)`;
-            
-            for (let t = 0; t <= deuceCap + 1; t++) {
-                let cell = document.createElement("div"); cell.className = "heatmap-cell cell-header";
-                if (t > 0) cell.textContent = `Opp: ${t-1}`;
-                grid.appendChild(cell);
-            }
-            
-            let index = 0;
-            for (let u = 0; u <= deuceCap; u++) {
-                let labelCell = document.createElement("div"); labelCell.className = "heatmap-cell cell-header";
-                labelCell.textContent = `Us: ${u}`;
-                grid.appendChild(labelCell);
-                
-                for (let t = 0; t <= deuceCap; t++) {
-                    let action = flatPolicyArray[index];
-                    let deltaV = flatDeltaVArray[index];
-                    index++;
-                    
-                    let cell = document.createElement("div");
-                    const isGameOver = ((u >= 25 || t >= 25) && Math.abs(u - t) >= 2);
-                    
-                    if (isGameOver) {
-                        cell.className = "heatmap-cell cell-game-over";
-                        cell.innerHTML = `<span>—</span>`;
-                    } else {
-                        let displayDelta = Math.abs(deltaV);
-                        
-                        if (Math.abs(deltaV) < 1e-6) {
-                            cell.className = "heatmap-cell cell-toss-up";
-                            cell.innerHTML = `<span>TS/FL</span><span style="font-size:0.45rem; opacity:0.85;">0.0%</span>`;
-                        } else {
-                            if (displayDelta < 0.0005) {
-                                displayDelta = 0.001;
-                            }
-                            
-                            if (action === 0) {
-                                if (deltaV >= 0.02) {
-                                    cell.className = "heatmap-cell cell-ts-strong";
-                                } else {
-                                    cell.className = "heatmap-cell cell-ts-weak";
-                                }
-                                cell.innerHTML = `<span>TS</span><span style="font-size:0.45rem; opacity:0.85;">+${(displayDelta * 100).toFixed(1)}%</span>`;
-                            } else {
-                                if (deltaV <= -0.02) {
-                                    cell.className = "heatmap-cell cell-fl-strong";
-                                } else {
-                                    cell.className = "heatmap-cell cell-fl-weak";
-                                }
-                                cell.innerHTML = `<span>FL</span><span style="font-size:0.45rem; opacity:0.85;">+${(displayDelta * 100).toFixed(1)}%</span>`;
-                            }
-                        }
-                    }
-                    grid.appendChild(cell);
-                }
-            }
-        }
-        function resetEngineState() {
-            localStorage.removeItem("vb_v3_2_roster"); defaultRoster = { "Elite Target A": { ts: [150, 22, 38, 45, 30, 15], fl: [220, 11, 11, 33, 99, 66] } };
-            document.getElementById("score_us").value = 17; document.getElementById("disp_us").textContent = 17;
-            document.getElementById("score_them").value = 17; document.getElementById("disp_them").textContent = 17;
-            updateRosterUI();
-        }
-        window.onload = updateRosterUI;
-    </script>
-
-    <script type="py">
-from pyscript import document
-from typing import List, Tuple, Dict, Any, Optional
-import json
-import random
-import time
-import math
-import js
-
-MAP_ACTION: Dict[str, int] = {"TOPSPIN": 0, "FLOAT": 1}
-MAP_STATE: Dict[str, int] = {"OUR_SERVE": 0, "THEIR_SERVE": 1}
-
-SET_POINTS: int = 25
-WIN_MARGIN: int = 2
-FIXED_CAP: int = 27
-RANDOM_SEED: int = 42
-
-# How many points away from set/match point "endgame proximity" starts ramping up to 1.0
-# Empirical-Bayes shrinkage: pulls small-sample serve stats toward a generic prior instead
-# of trusting a raw rate from a handful of serves. These priors are rough, generic starting
-# points (not measured truth for any team); as sample size grows the shrunk rate converges
-# to the observed rate regardless of what these are set to.
-SHRINKAGE_PRIOR: List[float] = [0.10, 0.12, 0.28, 0.28, 0.22]  # ace, error, poor, avg, perfect
-SHRINKAGE_PSEUDO_COUNT: float = 20.0
-MIN_RELIABLE_SAMPLE: int = 30
-
-def shrink_categorical_vector(counts: List[int], n: int) -> List[float]:
-    """
-    Empirical-Bayes shrinkage for a 5-way categorical rate (ace/error/poor/avg/perfect).
-    Blends observed counts toward SHRINKAGE_PRIOR, weighted by SHRINKAGE_PSEUDO_COUNT
-    "worth" of prior observations -- a stat from a dozen serves gets pulled hard toward
-    the prior; one from 600 serves is barely moved. Result still sums to 1.0.
-    """
-    total_weight = n + SHRINKAGE_PSEUDO_COUNT
-    return [
-        (counts[i] + SHRINKAGE_PRIOR[i] * SHRINKAGE_PSEUDO_COUNT) / total_weight
-        for i in range(len(counts))
-    ]
-
-PRESSURE_ENDGAME_WINDOW: int = 6
-PRESSURE_MARGIN_WINDOW: int = 6
+from typing import Dict, List, Tuple, Optional
 
 
-class ProportionalInductionEngine:
-    def __init__(self, kill_perfect: float, kill_average: float, kill_poor: float, our_sideout: float, max_cap: int = FIXED_CAP) -> None:
-        self.k_perf: float = kill_perfect
-        self.k_avg: float = kill_average
-        self.k_poor: float = kill_poor
-        self.our_sideout: float = our_sideout
-        self.max_cap: int = max_cap
-        self.states_allocated: int = 0
-        # Leverage-based pressure grid, populated by solve_optimal_policy_map.
-        # When set, get_pressure reads true point-leverage from this grid; before it
-        # is set (and outside the solved score range) a heuristic fallback is used.
-        self.pressure_grid: Optional[List[List[float]]] = None
-        self.max_leverage: float = 1.0
+class VolleyballMatchSimulator:
+    def __init__(self, level: str, gender: str):
+        self.level = level
+        self.gender = gender
+        self.base_rates = self._get_baseline_rates()
 
-    def clamp_probability(self, value: float) -> float:
-        return max(0.0001, min(0.999, value))
-
-    def compute_rally_metrics(self, vector: List[float]) -> float:
-        p_ace, p_err, p_poor, p_avg, p_perf = vector
-        return p_ace + (p_poor * (1.0 - self.k_poor)) + (p_avg * (1.0 - self.k_avg)) + (p_perf * (1.0 - self.k_perf))
-
-    def get_pressure(self, u: int, t: int) -> float:
+    def _get_baseline_rates(self):
         """
-        Point leverage in [0,1].
+        Benchmark RALLY-WIN rates for the receiving team, by pass quality.
 
-        Primary: read from self.pressure_grid, which holds normalized true leverage
-        (|V(u+1,t) - V(u,t+1)| / max) computed from a no-pressure pre-solve of the value
-        function. This measures how much winning vs losing THIS rally swings the
-        set-win probability -- the actual stakes at this exact score -- which is more
-        principled and more accurate than a hand-tuned endgame/tightness heuristic.
+        Three tiers (probability the RECEIVING team wins the rally given the
+        pass quality -- i.e. 1 minus the server's sideout rate for that tier):
+            perfect : in-system pass    (server's worst case)
+            average : routine pass
+            poor    : out-of-system pass (server's best case)
 
-        Fallback (deuce-tail region beyond the solved grid, or before a solve): the
-        original endgame-proximity + margin-tightness heuristic, which is still a
-        reasonable approximation and depends only on the (capped) score difference.
+        Values are rough, level/gender-tuned starting points; override any of
+        them with your own charted rates for a real team.
         """
-        if self.pressure_grid is not None and 0 <= u <= self.max_cap and 0 <= t <= self.max_cap:
-            return self.pressure_grid[u][t]
-        endgame_proximity = max(u, t) - (SET_POINTS - PRESSURE_ENDGAME_WINDOW)
-        endgame_proximity = max(0.0, min(1.0, endgame_proximity / PRESSURE_ENDGAME_WINDOW))
-        margin_tightness = 1.0 - max(0.0, min(1.0, abs(u - t) / PRESSURE_MARGIN_WINDOW))
-        return max(0.0, min(1.0, (0.5 * endgame_proximity) + (0.5 * margin_tightness)))
+        transitions = {
+            ("Pro", "Boys"):          {"perfect": 0.64, "average": 0.52, "poor": 0.38},
+            ("Pro", "Girls"):         {"perfect": 0.52, "average": 0.40, "poor": 0.28},
+            ("College", "Boys"):      {"perfect": 0.58, "average": 0.46, "poor": 0.34},
+            ("College", "Girls"):     {"perfect": 0.46, "average": 0.35, "poor": 0.24},
+            ("High School", "Boys"):  {"perfect": 0.50, "average": 0.39, "poor": 0.28},
+            ("High School", "Girls"): {"perfect": 0.38, "average": 0.27, "poor": 0.16},
+        }
+        return transitions.get(
+            (self.level, self.gender),
+            {"perfect": 0.45, "average": 0.34, "poor": 0.25},
+        )
 
-    def apply_pressure(self, base_v: List[float], pressure: float, amp_frac: float) -> List[float]:
-        """Shift additional probability mass into the error slot as leverage rises, renormalizing the rest."""
-        if amp_frac <= 0.0 or pressure <= 0.0:
-            return base_v
-        v = list(base_v)
-        err_idx = 1
-        added = amp_frac * pressure
-        new_err = min(1.0, v[err_idx] + added)
-        actually_added = new_err - v[err_idx]
-        old_remaining = 1.0 - v[err_idx]
-        new_remaining = 1.0 - new_err
-        v[err_idx] = new_err
-        if old_remaining > 1e-9:
-            scale = new_remaining / old_remaining
-            for i in range(len(v)):
-                if i != err_idx:
-                    v[i] *= scale
-        return v
-
-    def _compute_leverage_grid(self, v0: List[List[List[float]]]) -> List[List[float]]:
+    def calculate_point_win_probability(self, serve_stats: dict) -> float:
         """
-        Build the normalized point-leverage grid from a no-pressure value function.
+        Probability the SERVING team wins the rally.
 
-        leverage(u, t) = | V0(u+1, t, OUR_SERVE) - V0(u, t+1, THEIR_SERVE) |
-        i.e. the absolute swing in set-win probability from winning vs losing the
-        rally at (u, t). Normalized so the maximum over the solved grid is 1.0.
-        Only scores 0..max_cap are filled; the deuce-tail region uses the fallback
-        in get_pressure (it depends only on the capped score difference there).
+        Required keys (probabilities 0..1):
+            ace_rate, error_rate
+            opp_perfect_pass_rate  -- fraction of IN-PLAY serves that are perfect
+        Optional (enables the 3-tier model for more accuracy):
+            opp_average_pass_rate  -- fraction of IN-PLAY serves that are average
+        If opp_average_pass_rate is omitted, the legacy 2-tier model is used
+        (every non-perfect in-play serve is treated as poor), preserving
+        backward compatibility with existing scripts.
+
+        p_ace + p_error must be <= 1. Pass-rate fractions are of the in-play
+        serves (ace/error excluded); perfect + average must be <= 1, and the
+        remainder is treated as poor.
         """
-        dim: int = self.max_cap + 2
-        lev: List[List[float]] = [[0.0] * dim for _ in range(dim)]
-        max_l: float = 1e-9
-        for u in range(self.max_cap + 1):
-            for t in range(self.max_cap + 1):
-                v_win = v0[u + 1][t][MAP_STATE["OUR_SERVE"]]
-                v_lose = v0[u][t + 1][MAP_STATE["THEIR_SERVE"]]
-                lev[u][t] = abs(v_win - v_lose)
-                if lev[u][t] > max_l:
-                    max_l = lev[u][t]
-        self.max_leverage = max_l
-        for u in range(self.max_cap + 1):
-            for t in range(self.max_cap + 1):
-                lev[u][t] = lev[u][t] / max_l
-        return lev
+        try:
+            p_ace = float(serve_stats["ace_rate"])
+            p_error = float(serve_stats["error_rate"])
+            p_perfect = float(serve_stats["opp_perfect_pass_rate"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(
+                "serve_stats must contain numeric ace_rate, error_rate, "
+                "and opp_perfect_pass_rate values."
+            ) from exc
 
-    def solve_deuce_tail(self, ts_v: List[float], fl_v: List[float], ts_amp: float, fl_amp: float) -> Dict[str, Any]:
+        if not 0 <= p_ace <= 1:
+            raise ValueError("ace_rate must be between 0 and 1.")
+        if not 0 <= p_error <= 1:
+            raise ValueError("error_rate must be between 0 and 1.")
+        if p_ace + p_error > 1:
+            raise ValueError("ace_rate + error_rate cannot exceed 1.")
+        if not 0 <= p_perfect <= 1:
+            raise ValueError("opp_perfect_pass_rate must be between 0 and 1.")
+
+        p_in = 1.0 - (p_ace + p_error)
+
+        if "opp_average_pass_rate" in serve_stats:
+            p_average = float(serve_stats["opp_average_pass_rate"])
+            if not 0 <= p_average <= 1:
+                raise ValueError("opp_average_pass_rate must be between 0 and 1.")
+            if p_perfect + p_average > 1.0 + 1e-9:
+                raise ValueError("opp_perfect_pass_rate + opp_average_pass_rate cannot exceed 1.")
+            p_poor = max(0.0, 1.0 - p_perfect - p_average)
+            opp_rally_win = (
+                p_perfect * self.base_rates["perfect"]
+                + p_average * self.base_rates["average"]
+                + p_poor * self.base_rates["poor"]
+            )
+        else:
+            # Legacy 2-tier: non-perfect in-play serves treated as poor.
+            p_poor = 1.0 - p_perfect
+            opp_rally_win = (
+                p_perfect * self.base_rates["perfect"]
+                + p_poor * self.base_rates["poor"]
+            )
+
+        # Serving team wins on an ace, or by winning the rally after an in-play serve.
+        return p_ace + p_in * (1.0 - opp_rally_win)
+
+    def _deuce_win_prob(
+        self,
+        diff: int,
+        serving: bool,
+        p_win_serve: float,
+        p_win_receive: float,
+    ) -> float:
         """
-        Exact closed-form solution for the region beyond self.max_cap, replacing the old
-        "just guess 0.5/1/0" boundary approximation.
+        Exact set-win probability in the win-by-2 region (both teams >= 25).
 
-        Once both scores are past SET_POINTS, pressure (see get_pressure) stops depending
-        on the absolute score and depends only on the score DIFFERENCE d in {-1, 0, 1}
-        (|d| >= 2 already ends the set). That makes the region a stationary Markov chain,
-        solvable exactly instead of approximated. The action at each d is simply whichever
-        of topspin/float has the higher pressure-adjusted point-win probability there.
+        In this region only the clamped score difference d in {-1, 0, 1} and the
+        next server matter, so the game is a stationary Markov chain with a
+        closed-form solution. Let ps = P(we win a point we serve), pr = P(we win
+        a point we receive). The set resolves when one team wins two consecutive
+        rallies; otherwise it returns to deuce.
+
+            V0   = ps*pr / (ps*pr + (1-ps)*(1-pr))   [from deuce, either server]
+            V1T  = ps + (1-ps)*V0                    [up 1, we serve]
+            V1F  = pr + (1-pr)*V0                    [up 1, opponent serves]
+            Vm1T = ps*V0                             [down 1, we serve]
+            Vm1F = pr*V0                             [down 1, opponent serves]
+
+        This replaces the previous ">30 -> 0.5 / leader wins" shortcut, which
+        was only correct when ps == pr == 0.5 and otherwise biased the estimate.
         """
-        p_point: Dict[int, float] = {}
-        p_ts_at: Dict[int, float] = {}
-        p_fl_at: Dict[int, float] = {}
-        action_at: Dict[int, int] = {}
-        delta_at: Dict[int, float] = {}
-        probe_base = max(SET_POINTS, self.max_cap) + 10
-        for d in (-1, 0, 1):
-            pressure_d = self.get_pressure(probe_base, probe_base - d)
-            p_ts_d = self.compute_rally_metrics(self.apply_pressure(ts_v, pressure_d, ts_amp))
-            p_fl_d = self.compute_rally_metrics(self.apply_pressure(fl_v, pressure_d, fl_amp))
-            p_ts_at[d] = p_ts_d
-            p_fl_at[d] = p_fl_d
-            if p_ts_d >= p_fl_d:
-                action_at[d] = MAP_ACTION["TOPSPIN"]
-                p_point[d] = p_ts_d
-            else:
-                action_at[d] = MAP_ACTION["FLOAT"]
-                p_point[d] = p_fl_d
-            delta_at[d] = p_ts_d - p_fl_d
+        ps, pr = p_win_serve, p_win_receive
+        denom = ps * pr + (1.0 - ps) * (1.0 - pr)
+        if denom < 1e-12:
+            # Pathological: no two-rally cycle ever resolves (e.g. ps=1, pr=0).
+            return 0.5
+        v0 = ps * pr / denom
+        v1t = ps + (1.0 - ps) * v0
+        v1f = pr + (1.0 - pr) * v0
+        vm1t = ps * v0
+        vm1f = pr * v0
+        if diff == 0:
+            return v0  # proved equal for either server
+        if diff == 1:
+            return v1t if serving else v1f
+        return vm1t if serving else vm1f
 
-        p_s = p_point
-        p_r = self.our_sideout
+    def compute_set_win_expectancy(
+        self,
+        score_us: int,
+        score_them: int,
+        serving: bool,
+        p_win_serve: float,
+        p_win_receive: float,
+        memo: Optional[Dict[Tuple[int, int, bool], float]] = None,
+    ) -> float:
+        """
+        Dynamic-programming set-win probability for a 25-point, win-by-2 set.
+        serving=True means OUR team serves the next rally.
+        """
+        if not 0 <= p_win_serve <= 1:
+            raise ValueError("p_win_serve must be between 0 and 1.")
+        if not 0 <= p_win_receive <= 1:
+            raise ValueError("p_win_receive must be between 0 and 1.")
+        if score_us < 0 or score_them < 0:
+            raise ValueError("Scores cannot be negative.")
 
-        A1 = 1 - (1 - p_s[0]) * p_r
-        A2 = p_s[0] * (1 - p_s[1])
-        A_rhs = p_s[0] * p_s[1]
-        B1 = 1 - p_r * (1 - p_s[1])
-        B2 = (1 - p_r) * p_r
-        B_rhs = p_r * p_s[1]
-        D = A1 * B1 - A2 * B2
+        if memo is None:
+            memo = {}
 
-        V0T = (A_rhs * B1 + A2 * B_rhs) / D
-        V0F = (A1 * B_rhs + B2 * A_rhs) / D
-        V1T = p_s[1] + (1 - p_s[1]) * V0F
-        V1F = p_r + (1 - p_r) * V0F
-        Vm1T = p_s[-1] * V0T
-        Vm1F = p_r * V0T
+        state = (score_us, score_them, serving)
+        if state in memo:
+            return memo[state]
+
+        # Terminal set conditions.
+        if score_us >= 25 and (score_us - score_them) >= 2:
+            return 1.0
+        if score_them >= 25 and (score_them - score_us) >= 2:
+            return 0.0
+
+        # Exact closed form for the win-by-2 region (both teams past 25),
+        # instead of the old ">30" approximation that only held at ps=pr=0.5.
+        if score_us >= 25 and score_them >= 25:
+            diff = max(-1, min(1, score_us - score_them))
+            value = self._deuce_win_prob(diff, serving, p_win_serve, p_win_receive)
+            memo[state] = value
+            return value
+
+        p_win_point = p_win_serve if serving else p_win_receive
+
+        prob_if_we_win_point = self.compute_set_win_expectancy(
+            score_us + 1, score_them, True, p_win_serve, p_win_receive, memo
+        )
+        prob_if_we_lose_point = self.compute_set_win_expectancy(
+            score_us, score_them + 1, False, p_win_serve, p_win_receive, memo
+        )
+
+        win_expectancy = (
+            p_win_point * prob_if_we_win_point
+            + (1.0 - p_win_point) * prob_if_we_lose_point
+        )
+        memo[state] = win_expectancy
+        return win_expectancy
+
+    def get_optimal_strategy(
+        self,
+        current_score: tuple,
+        player_profile: dict,
+        serving: bool,
+        our_sideout_rate: float,
+    ):
+        """
+        Evaluates all serving strategies and returns the one with the highest
+        projected probability of winning the current set.
+        """
+        if not isinstance(current_score, tuple) or len(current_score) != 2:
+            raise ValueError("current_score must be a tuple: (score_us, score_them).")
+        score_us, score_them = current_score
+        if score_us < 0 or score_them < 0:
+            raise ValueError("Scores cannot be negative.")
+        if not 0 <= our_sideout_rate <= 1:
+            raise ValueError("our_sideout_rate must be between 0 and 1.")
+        if not player_profile:
+            raise ValueError("player_profile cannot be empty.")
+
+        best_strategy = None
+        max_set_win_prob = -1.0
+        strategy_analysis = {}
+
+        for strategy_name, stats in player_profile.items():
+            p_point = self.calculate_point_win_probability(stats)
+            # Fresh memo per strategy so probabilities cannot leak between profiles.
+            p_set = self.compute_set_win_expectancy(
+                score_us, score_them, serving, p_point, our_sideout_rate
+            )
+            strategy_analysis[strategy_name] = {
+                "point_win_prob": round(p_point, 3),
+                "set_win_expectancy": round(p_set, 3),
+            }
+            if p_set > max_set_win_prob:
+                max_set_win_prob = p_set
+                best_strategy = strategy_name
 
         return {
-            "v": {0: {True: V0T, False: V0F}, 1: {True: V1T, False: V1F}, -1: {True: Vm1T, False: Vm1F}},
-            "action_at": action_at,
-            "delta_at": delta_at,
-            "p_ts_at": p_ts_at,
-            "p_fl_at": p_fl_at,
+            "current_score": current_score,
+            "recommended_strategy": best_strategy,
+            "projected_set_win_probability": round(max_set_win_prob * 100, 1),
+            "full_analysis": strategy_analysis,
         }
 
-    def _solve_pass(self, ts_v: List[float], fl_v: List[float], ts_amp: float, fl_amp: float
-                     ) -> Tuple[List[List[List[float]]], List[List[List[int]]], List[List[List[float]]], List[List[float]], List[List[float]]]:
+    @staticmethod
+    def validate_against_recorded_sets(simulator, records: list) -> dict:
         """
-        Single backward-induction solve of the value/policy grids at the given serve
-        vectors and pressure amplitudes. Pressure at each score is read from
-        get_pressure (leverage-based once pressure_grid is populated, heuristic
-        otherwise). Terminal states and the win-by-2 deuce tail are handled first.
+        Compares model predictions against observed set outcomes.
+
+        Each record: {
+            "score_us", "score_them": ints,
+            "serving": bool (True if OUR team served the next rally),
+            "p_win_serve", "p_win_receive": floats in 0..1,
+            "observed_winner": "us" | "them"
+        }
+        Returns accuracy = fraction of records whose predicted winner
+        (model set-win prob >= 0.5 -> "us") matches the observed winner.
+
+        NOTE: the example records in __main__ are ILLUSTRATIVE PLACEHOLDERS.
+        Replace them with your own logged sets before trusting this number.
         """
-        dim: int = self.max_cap + 2
-        v_grid: List[List[List[float]]] = [[[0.0] * 2 for _ in range(dim)] for _ in range(dim)]
-        policy_grid: List[List[List[int]]] = [[[0] * 2 for _ in range(dim)] for _ in range(dim)]
-        delta_v_grid: List[List[List[float]]] = [[[0.0] * 2 for _ in range(dim)] for _ in range(dim)]
-        ts_rally_grid: List[List[float]] = [[0.0] * dim for _ in range(dim)]
-        fl_rally_grid: List[List[float]] = [[0.0] * dim for _ in range(dim)]
-        self.states_allocated = 0
+        n = len(records)
+        if n == 0:
+            return {"accuracy": 0.0, "n_records": 0, "correct": 0, "predictions": []}
+        correct = 0
+        predictions = []
+        for rec in records:
+            p_set = simulator.compute_set_win_expectancy(
+                rec["score_us"], rec["score_them"], rec["serving"],
+                rec["p_win_serve"], rec["p_win_receive"],
+            )
+            predicted = "us" if p_set >= 0.5 else "them"
+            ok = predicted == rec["observed_winner"]
+            if ok:
+                correct += 1
+            predictions.append({
+                "score": (rec["score_us"], rec["score_them"]),
+                "predicted": predicted,
+                "observed": rec["observed_winner"],
+                "model_p": round(p_set, 3),
+                "correct": ok,
+            })
+        return {
+            "accuracy": correct / n,
+            "n_records": n,
+            "correct": correct,
+            "predictions": predictions,
+        }
 
-        deuce_tail = self.solve_deuce_tail(ts_v, fl_v, ts_amp, fl_amp)
 
-        for u in range(dim):
-            for t in range(dim):
-                if u >= SET_POINTS and (u - t) >= WIN_MARGIN:
-                    v_grid[u][t][MAP_STATE["OUR_SERVE"]] = self.clamp_probability(1.0)
-                    v_grid[u][t][MAP_STATE["THEIR_SERVE"]] = self.clamp_probability(1.0)
-                elif t >= SET_POINTS and (t - u) >= WIN_MARGIN:
-                    v_grid[u][t][MAP_STATE["OUR_SERVE"]] = self.clamp_probability(0.0)
-                    v_grid[u][t][MAP_STATE["THEIR_SERVE"]] = self.clamp_probability(0.0)
-                elif u >= self.max_cap or t >= self.max_cap:
-                    # |diff| here is guaranteed to be 0 or 1: any |diff| >= 2 at u or t >= 25
-                    # was already handled by the two terminal branches above.
-                    d = max(-1, min(1, u - t))
-                    v_grid[u][t][MAP_STATE["OUR_SERVE"]] = self.clamp_probability(deuce_tail["v"][d][True])
-                    v_grid[u][t][MAP_STATE["THEIR_SERVE"]] = self.clamp_probability(deuce_tail["v"][d][False])
-                    policy_grid[u][t][MAP_STATE["OUR_SERVE"]] = deuce_tail["action_at"][d]
-                    delta_v_grid[u][t][MAP_STATE["OUR_SERVE"]] = deuce_tail["delta_at"][d]
-                    ts_rally_grid[u][t] = deuce_tail["p_ts_at"][d]
-                    fl_rally_grid[u][t] = deuce_tail["p_fl_at"][d]
+# ==========================================
+# COACH'S USAGE EXAMPLE
+# ==========================================
+if __name__ == "__main__":
+    # Example Scenario: High School Girls Match
+    coach_simulator = VolleyballMatchSimulator(level="High School", gender="Girls")
 
-        for sum_sc in range(2 * self.max_cap, -1, -1):
-            for u in range(self.max_cap + 1):
-                t = sum_sc - u
-                if t < 0 or t > self.max_cap: continue
-                if u >= SET_POINTS and (u - t) >= WIN_MARGIN: continue
-                if t >= SET_POINTS and (t - u) >= WIN_MARGIN: continue
-                
-                self.states_allocated += 2
-                u_next = min(u + 1, dim - 1)
-                t_next = min(t + 1, dim - 1)
-
-                pressure = self.get_pressure(u, t)
-                p_win_ts = self.compute_rally_metrics(self.apply_pressure(ts_v, pressure, ts_amp))
-                p_win_fl = self.compute_rally_metrics(self.apply_pressure(fl_v, pressure, fl_amp))
-                ts_rally_grid[u][t] = p_win_ts
-                fl_rally_grid[u][t] = p_win_fl
-
-                opp_serve_equity = (self.our_sideout * v_grid[u_next][t][MAP_STATE["OUR_SERVE"]]) + ((1.0 - self.our_sideout) * v_grid[u][t_next][MAP_STATE["THEIR_SERVE"]])
-                v_grid[u][t][MAP_STATE["THEIR_SERVE"]] = self.clamp_probability(opp_serve_equity)
-
-                v_our_next = v_grid[u_next][t][MAP_STATE["OUR_SERVE"]]
-                v_their_next = v_grid[u][t_next][MAP_STATE["THEIR_SERVE"]]
-
-                equity_ts = (p_win_ts * v_our_next) + ((1.0 - p_win_ts) * v_their_next)
-                equity_fl = (p_win_fl * v_our_next) + ((1.0 - p_win_fl) * v_their_next)
-                delta_v_grid[u][t][MAP_STATE["OUR_SERVE"]] = equity_ts - equity_fl
-
-                if equity_ts >= equity_fl:
-                    policy_grid[u][t][MAP_STATE["OUR_SERVE"]] = MAP_ACTION["TOPSPIN"]
-                    v_grid[u][t][MAP_STATE["OUR_SERVE"]] = self.clamp_probability(equity_ts)
-                else:
-                    policy_grid[u][t][MAP_STATE["OUR_SERVE"]] = MAP_ACTION["FLOAT"]
-                    v_grid[u][t][MAP_STATE["OUR_SERVE"]] = self.clamp_probability(equity_fl)
-
-        return v_grid, policy_grid, delta_v_grid, ts_rally_grid, fl_rally_grid
-
-    def solve_optimal_policy_map(self, ts_v: List[float], fl_v: List[float], ts_amp: float, fl_amp: float, reuse_pressure: bool = False
-                                  ) -> Tuple[List[List[List[float]]], List[List[List[int]]], List[List[List[float]]], List[List[float]], List[List[float]]]:
-        """
-        Two-pass solve:
-
-        Pass 1 (no pressure): solve the value function with amp=0 everywhere to get
-        the INTRINSIC stakes of each point, independent of the pressure model itself.
-        From it, build the normalized point-leverage grid (self.pressure_grid).
-
-        Pass 2 (real pressure): re-solve using leverage-based pressure so error rates
-        climb exactly where the point matters most.
-
-        reuse_pressure=True skips pass 1 and reuses the already-built leverage grid,
-        which keeps the sensitivity analysis clean (it isolates the serve-skill effect
-        instead of also perturbing the pressure schedule) and is faster.
-        """
-        if not reuse_pressure or self.pressure_grid is None:
-            v0, _, _, _, _ = self._solve_pass(ts_v, fl_v, 0.0, 0.0)
-            self.pressure_grid = self._compute_leverage_grid(v0)
-        return self._solve_pass(ts_v, fl_v, ts_amp, fl_amp)
-
-    def compute_wilson_score_bounds_from_counts(self, expected_successes: float, n: int) -> Tuple[float, float]:
-        if n == 0: return 0.0, 1.0
-        obs_p: float = expected_successes / n
-        z: float = 1.96
-        denom: float = 1 + (z**2)/n
-        center: float = obs_p + (z**2)/(2*n)
-        spread: float = z * math.sqrt((obs_p*(1-obs_p)/n) + (z**2)/(4*(n**2)))
-        low = max(0.0001, (center - spread)/denom)
-        high = min(0.999, (center + spread)/denom)
-        return low, high
-
-    def run_policy_simulation(self, start_us: int, start_them: int, start_serving: int, ts_v: List[float], fl_v: List[float], ts_amp: float, fl_amp: float, policy_grid: List[List[List[int]]], trials: int, force_heuristic: str = "optimal") -> float:
-        """
-        Honest Monte Carlo of the full set, including the win-by-2 deuce region.
-
-        The deuce region is played out rally-by-rally (no pressure, no early cap
-        cutoff) so the simulation is a genuine independent check of the DP value,
-        not a tautology. A guard bounds pathological runs. In the deuce region the
-        action is chosen by directly comparing the leverage-adjusted topspin vs
-        float point-win rates (matching the DP's deuce-tail action selection).
-        """
-        random.seed(RANDOM_SEED)
-        wins: int = 0
-        for _ in range(trials):
-            u, t, server = start_us, start_them, start_serving
-            guard: int = 0
-            while True:
-                guard += 1
-                if guard > 5000:
-                    # Pathological run (extremely unlikely at realistic rates): avoid hang.
-                    if u > t: wins += 1
-                    break
-                if u >= SET_POINTS and (u - t) >= WIN_MARGIN:
-                    wins += 1; break
-                if t >= SET_POINTS and (t - u) >= WIN_MARGIN:
-                    break
-
-                roll: float = random.random()
-                if server == MAP_STATE["OUR_SERVE"]:
-                    pressure = self.get_pressure(u, t)
-                    if force_heuristic == "always_ts":
-                        action = MAP_ACTION["TOPSPIN"]
-                    elif force_heuristic == "always_fl":
-                        action = MAP_ACTION["FLOAT"]
-                    elif force_heuristic == "naive":
-                        action = MAP_ACTION["TOPSPIN"] if u >= t else MAP_ACTION["FLOAT"]
-                    else:
-                        if u >= self.max_cap or t >= self.max_cap:
-                            # Deuce tail: choose action by comparing adjusted rates at this leverage.
-                            p_ts_d = self.compute_rally_metrics(self.apply_pressure(ts_v, pressure, ts_amp))
-                            p_fl_d = self.compute_rally_metrics(self.apply_pressure(fl_v, pressure, fl_amp))
-                            action = MAP_ACTION["TOPSPIN"] if p_ts_d >= p_fl_d else MAP_ACTION["FLOAT"]
-                        else:
-                            action = policy_grid[u][t][MAP_STATE["OUR_SERVE"]]
-
-                    if action == MAP_ACTION["TOPSPIN"]:
-                        p_win: float = self.compute_rally_metrics(self.apply_pressure(ts_v, pressure, ts_amp))
-                    else:
-                        p_win = self.compute_rally_metrics(self.apply_pressure(fl_v, pressure, fl_amp))
-                    if roll < p_win: u += 1
-                    else: t += 1; server = MAP_STATE["THEIR_SERVE"]
-                else:
-                    if roll < self.our_sideout: u += 1; server = MAP_STATE["OUR_SERVE"]
-                    else: t += 1
-        return self.clamp_probability(wins / trials)
-
-def execute_optimization_sequence(event: Any) -> None:
-    btn = document.getElementById("calc-opt-btn")
-    loader = document.getElementById("loading-indicator")
-    err_box = document.getElementById("validation-error-box")
-    
-    btn.disabled = True; loader.style.display = "block"; err_box.style.display = "none"
-    
-    troubled_fields = []
-    
-    # 1. Fetch raw elements safely
-    try:
-        active_select = document.getElementById("active-player")
-        server_name = "Active Server"
-        
-        # Safely resolve select text using web methods instead of subscripts
-        if active_select and active_select.selectedIndex >= 0:
-            opt = active_select.options.item(active_select.selectedIndex)
-            if opt:
-                server_name = opt.text
-        
-        # Pull raw strings
-        ts_n_str = document.getElementById("p_ts_n").value
-        ts_ace_str = document.getElementById("p_ts_ace").value
-        ts_err_str = document.getElementById("p_ts_err").value
-        ts_poor_str = document.getElementById("p_ts_poor").value
-        ts_avg_str = document.getElementById("p_ts_avg").value
-        ts_perf_str = document.getElementById("p_ts_perf").value
-        
-        fl_n_str = document.getElementById("p_fl_n").value
-        fl_ace_str = document.getElementById("p_fl_ace").value
-        fl_err_str = document.getElementById("p_fl_err").value
-        fl_poor_str = document.getElementById("p_fl_poor").value
-        fl_avg_str = document.getElementById("p_fl_avg").value
-        fl_perf_str = document.getElementById("p_fl_perf").value
-
-        opp_poor_str = document.getElementById("opp_kill_poor").value
-        opp_avg_str = document.getElementById("opp_kill_average").value
-        opp_perf_str = document.getElementById("opp_kill_perfect").value
-        our_so_str = document.getElementById("our_sideout_rate").value
-
-        press_amp_ts_str = document.getElementById("press_amp_ts").value
-        press_amp_fl_str = document.getElementById("press_amp_fl").value
-        
-        score_us_str = document.getElementById("score_us").value
-        score_them_str = document.getElementById("score_them").value
-
-    except Exception as e:
-        err_box.innerText = f"DOM Reading Error: {str(e)}"
-        err_box.style.display = "block"
-        btn.disabled = False; loader.style.display = "none"; return
-
-    # 2. Check for empty fields first
-    inputs_map = {
-        "p_ts_n": ts_n_str, "p_ts_ace": ts_ace_str, "p_ts_err": ts_err_str, 
-        "p_ts_poor": ts_poor_str, "p_ts_avg": ts_avg_str, "p_ts_perf": ts_perf_str,
-        "p_fl_n": fl_n_str, "p_fl_ace": fl_ace_str, "p_fl_err": fl_err_str,
-        "p_fl_poor": fl_poor_str, "p_fl_avg": fl_avg_str, "p_fl_perf": fl_perf_str,
-        "opp_kill_poor": opp_poor_str, "opp_kill_average": opp_avg_str, 
-        "opp_kill_perfect": opp_perf_str, "our_sideout_rate": our_so_str,
-        "press_amp_ts": press_amp_ts_str, "press_amp_fl": press_amp_fl_str
+    # 3-tier example (more accurate when you chart the average-pass rate too).
+    # Pass-rate fractions are of IN-PLAY serves (ace/error excluded).
+    player_serve_matrix = {
+        "Aggressive Jump Float (Zone 1)": {
+            "ace_rate": 0.12, "error_rate": 0.06,
+            "opp_perfect_pass_rate": 0.25, "opp_average_pass_rate": 0.40,
+        },
+        "High-Risk Jump Spin (Zone 6)": {
+            "ace_rate": 0.22, "error_rate": 0.26,
+            "opp_perfect_pass_rate": 0.15, "opp_average_pass_rate": 0.30,
+        },
+        "Safe Standing Float (Target Weak Passer)": {
+            "ace_rate": 0.04, "error_rate": 0.02,
+            "opp_perfect_pass_rate": 0.45, "opp_average_pass_rate": 0.35,
+        },
     }
-    
-    for key, val in inputs_map.items():
-        if not val or str(val).strip() == "":
-            troubled_fields.append(key)
 
-    if troubled_fields:
-        js.eval(f"window.highlightInputErrors({json.dumps(troubled_fields)})")
-        err_box.innerText = "Error: Please fill in all empty fields highlighted in red."
-        err_box.style.display = "block"
-        btn.disabled = False; loader.style.display = "none"; return
+    current_game_state = (22, 23)
+    we_are_serving = True
+    our_sideout_rate = 0.62
 
-    # 3. Explicit Type Conversions with specific try-blocks
-    try:
-        ts_n = int(ts_n_str)
-        ts_ace_cnt = int(ts_ace_str)
-        ts_err_cnt = int(ts_err_str)
-        ts_poor_cnt = int(ts_poor_str)
-        ts_avg_cnt = int(ts_avg_str)
-        ts_perf_cnt = int(ts_perf_str)
-    except ValueError:
-        err_box.innerText = "Type Error: Please check your Topspin values. Only whole numbers allowed."
-        err_box.style.display = "block"
-        btn.disabled = False; loader.style.display = "none"; return
+    decision = coach_simulator.get_optimal_strategy(
+        current_game_state, player_serve_matrix, we_are_serving, our_sideout_rate
+    )
 
-    try:
-        fl_n = int(fl_n_str)
-        fl_ace_cnt = int(fl_ace_str)
-        fl_err_cnt = int(fl_err_str)
-        fl_poor_cnt = int(fl_poor_str)
-        fl_avg_cnt = int(fl_avg_str)
-        fl_perf_cnt = int(fl_perf_str)
-    except ValueError:
-        err_box.innerText = "Type Error: Please check your Float values. Only whole numbers allowed."
-        err_box.style.display = "block"
-        btn.disabled = False; loader.style.display = "none"; return
+    print(
+        f"--- MATCH DECISION REPORT "
+        f"({coach_simulator.level} {coach_simulator.gender}) ---"
+    )
+    print(
+        f"Score: Us {decision['current_score'][0]} | "
+        f"Opponent {decision['current_score'][1]}"
+    )
+    print(f"RECOMMENDED STRATEGY: {decision['recommended_strategy']}\n")
 
-    try:
-        k_poor = float(opp_poor_str) / 100.0
-        k_avg = float(opp_avg_str) / 100.0
-        k_perf = float(opp_perf_str) / 100.0
-        our_so = float(our_so_str) / 100.0
-    except ValueError:
-        err_box.innerText = "Type Error: Opponent or team statistics must be clean numeric decimals or percentages."
-        err_box.style.display = "block"
-        btn.disabled = False; loader.style.display = "none"; return
+    print("Strategy Breakdown:")
+    for strategy, metrics in decision["full_analysis"].items():
+        print(f" -> {strategy}:")
+        print(
+            f"    Rally Win Prob (on our serve): "
+            f"{metrics['point_win_prob'] * 100:.1f}% | "
+            f"Set Win Expectancy: "
+            f"{metrics['set_win_expectancy'] * 100:.1f}%"
+        )
 
-    try:
-        press_amp_ts = max(0.0, float(press_amp_ts_str)) / 100.0
-        press_amp_fl = max(0.0, float(press_amp_fl_str)) / 100.0
-    except ValueError:
-        err_box.innerText = "Type Error: Pressure sensitivity values must be clean numeric percentages."
-        err_box.style.display = "block"
-        btn.disabled = False; loader.style.display = "none"; return
+    print(
+        f"\nExecuting the recommended strategy gives you a "
+        f"{decision['projected_set_win_probability']}% chance to win the set."
+    )
 
-    try:
-        score_us = int(score_us_str)
-        score_them = int(score_them_str)
-    except ValueError:
-        score_us, score_them = 17, 17
-
-    # 4. Logical boundaries validation
-    if ts_n <= 0: troubled_fields.append("p_ts_n")
-    if fl_n <= 0: troubled_fields.append("p_fl_n")
-    if troubled_fields:
-        js.eval(f"window.highlightInputErrors({json.dumps(troubled_fields)})")
-        err_box.innerText = "Error: Total Serves logged must be greater than zero."
-        err_box.style.display = "block"
-        btn.disabled = False; loader.style.display = "none"; return
-
-    # 5. Exact sums validation
-    ts_total_counted = ts_ace_cnt + ts_err_cnt + ts_poor_cnt + ts_avg_cnt + ts_perf_cnt
-    if ts_total_counted != ts_n:
-        troubled_fields.extend(["p_ts_n", "p_ts_ace", "p_ts_err", "p_ts_poor", "p_ts_avg", "p_ts_perf"])
-        js.eval(f"window.highlightInputErrors({json.dumps(troubled_fields)})")
-        err_box.innerHTML = f"Error: Topspin category counts add up to <strong>{ts_total_counted}</strong>, but your Total Serves input is <strong>{ts_n}</strong>."
-        err_box.style.display = "block"
-        btn.disabled = False; loader.style.display = "none"; return
-
-    fl_total_counted = fl_ace_cnt + fl_err_cnt + fl_poor_cnt + fl_avg_cnt + fl_perf_cnt
-    if fl_total_counted != fl_n:
-        troubled_fields.extend(["p_fl_n", "p_fl_ace", "p_fl_err", "p_fl_poor", "p_fl_avg", "p_fl_perf"])
-        js.eval(f"window.highlightInputErrors({json.dumps(troubled_fields)})")
-        err_box.innerHTML = f"Error: Float category counts add up to <strong>{fl_total_counted}</strong>, but your Total Serves input is <strong>{fl_n}</strong>."
-        err_box.style.display = "block"
-        btn.disabled = False; loader.style.display = "none"; return
-
-    # 6. Execute Calculations
-    deuce_cap: int = FIXED_CAP
-    if score_us > deuce_cap or score_them > deuce_cap:
-        deuce_cap = max(score_us + WIN_MARGIN, score_them + WIN_MARGIN)
-
-    ts_v_raw: List[float] = [ts_ace_cnt/ts_n, ts_err_cnt/ts_n, ts_poor_cnt/ts_n, ts_avg_cnt/ts_n, ts_perf_cnt/ts_n]
-    fl_v_raw: List[float] = [fl_ace_cnt/fl_n, fl_err_cnt/fl_n, fl_poor_cnt/fl_n, fl_avg_cnt/fl_n, fl_perf_cnt/fl_n]
-
-    # Shrink small-sample rates toward a generic prior before they drive any decisions.
-    ts_v: List[float] = shrink_categorical_vector([ts_ace_cnt, ts_err_cnt, ts_poor_cnt, ts_avg_cnt, ts_perf_cnt], ts_n)
-    fl_v: List[float] = shrink_categorical_vector([fl_ace_cnt, fl_err_cnt, fl_poor_cnt, fl_avg_cnt, fl_perf_cnt], fl_n)
-    ts_low_confidence: bool = ts_n < MIN_RELIABLE_SAMPLE
-    fl_low_confidence: bool = fl_n < MIN_RELIABLE_SAMPLE
-
-    server_state: int = MAP_STATE["OUR_SERVE"] if document.getElementById("current_poss").value == "us" else MAP_STATE["THEIR_SERVE"]
-
-    model = ProportionalInductionEngine(k_perf, k_avg, k_poor, our_so, deuce_cap)
-    ts_rally_base: float = model.compute_rally_metrics(ts_v)
-    fl_rally_base: float = model.compute_rally_metrics(fl_v)
-    
-    t0: float = time.time()
-    # Two-pass solve: builds the leverage grid (pass 1), then solves with leverage-based pressure (pass 2).
-    v_grid, policy_grid, delta_v_grid, ts_rally_grid, fl_rally_grid = model.solve_optimal_policy_map(ts_v, fl_v, press_amp_ts, press_amp_fl)
-    resolved_equity: float = model.clamp_probability(v_grid[score_us][score_them][server_state])
-    t_dp: float = (time.time() - t0) * 1000.0
-
-    # Pressure-adjusted point-win rates and leverage at the score currently on the board
-    pressure_at_score: float = model.get_pressure(score_us, score_them)
-    leverage_at_score: float = pressure_at_score * model.max_leverage
-    ts_rally: float = ts_rally_grid[score_us][score_them]
-    fl_rally: float = fl_rally_grid[score_us][score_them]
-
-    h: float = 0.01
-    sens_deltas: List[float] = []
-
-    recommended_action: int = policy_grid[score_us][score_them][MAP_STATE["OUR_SERVE"]]
-    active_v: List[float] = ts_v if recommended_action == MAP_ACTION["TOPSPIN"] else fl_v
-    sens_serve_label: str = "Topspin" if recommended_action == MAP_ACTION["TOPSPIN"] else "Float"
-
-    def evaluate_renormalized_perturbation(base_v: List[float], target_idx: int) -> float:
-        v_mod = list(base_v)
-        if v_mod[target_idx] + h > 1.0: return resolved_equity
-        
-        v_mod[target_idx] += h
-        remainder_sum = sum(v_mod[i] for i in range(len(v_mod)) if i != target_idx)
-        
-        if remainder_sum > 0:
-            scale_factor = (1.0 - v_mod[target_idx]) / remainder_sum
-            for i in range(len(v_mod)):
-                if i != target_idx: v_mod[i] *= scale_factor
-        else:
-            step = h / (len(v_mod) - 1)
-            for i in range(len(v_mod)):
-                if i != target_idx: v_mod[i] = max(0.0, v_mod[i] - step)
-
-        # Reuse the base leverage grid so the perturbation isolates the serve-skill effect.
-        if recommended_action == MAP_ACTION["TOPSPIN"]:
-            g, _, _, _, _ = model.solve_optimal_policy_map(v_mod, fl_v, press_amp_ts, press_amp_fl, True)
-        else:
-            g, _, _, _, _ = model.solve_optimal_policy_map(ts_v, v_mod, press_amp_ts, press_amp_fl, True)
-        return model.clamp_probability(g[score_us][score_them][server_state])
-
-    for target in range(5):
-        sens_deltas.append(evaluate_renormalized_perturbation(active_v, target) - resolved_equity)
-
-    ts_expected_wins: float = float(ts_ace_cnt) + (float(ts_poor_cnt) * (1.0 - k_poor)) + (float(ts_avg_cnt) * (1.0 - k_avg)) + (float(ts_perf_cnt) * (1.0 - k_perf))
-    fl_expected_wins: float = float(fl_ace_cnt) + (float(fl_poor_cnt) * (1.0 - k_poor)) + (float(fl_avg_cnt) * (1.0 - k_avg)) + (float(fl_perf_cnt) * (1.0 - k_perf))
-    
-    ts_low, ts_high = model.compute_wilson_score_bounds_from_counts(ts_expected_wins, ts_n)
-    fl_low, fl_high = model.compute_wilson_score_bounds_from_counts(fl_expected_wins, fl_n)
-
-    high_precision_trials: int = 10000
-    mc_equity: float = model.run_policy_simulation(score_us, score_them, server_state, ts_v, fl_v, press_amp_ts, press_amp_fl, policy_grid, high_precision_trials, "optimal")
-    mc_always_ts_equity: float = model.run_policy_simulation(score_us, score_them, server_state, ts_v, fl_v, press_amp_ts, press_amp_fl, policy_grid, high_precision_trials, "always_ts")
-    mc_always_fl_equity: float = model.run_policy_simulation(score_us, score_them, server_state, ts_v, fl_v, press_amp_ts, press_amp_fl, policy_grid, high_precision_trials, "always_fl")
-    mc_naive_equity: float = model.run_policy_simulation(score_us, score_them, server_state, ts_v, fl_v, press_amp_ts, press_amp_fl, policy_grid, high_precision_trials, "naive")
-
-    # Illustrative synthetic score scenarios -- NOT real recorded matches, from any level
-    # of play. This exists to demonstrate the concordance-check mechanism itself. Real
-    # validation requires testing predictions against actual logged match outcomes.
-    synthetic_test_scenarios: List[Dict[str, Any]] = [
-        {"us": 12, "them": 14, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "us"},
-        {"us": 24, "them": 23, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "us"},
-        {"us": 4, "them": 9, "server": MAP_STATE["THEIR_SERVE"], "observed_winner": "them"},
-        {"us": 19, "them": 20, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "them"},
-        {"us": 14, "them": 11, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "us"},
-        {"us": 22, "them": 22, "server": MAP_STATE["THEIR_SERVE"], "observed_winner": "them"},
-        {"us": 8, "them": 5, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "us"},
-        {"us": 26, "them": 25, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "us"},
-        {"us": 17, "them": 18, "server": MAP_STATE["THEIR_SERVE"], "observed_winner": "them"},
-        {"us": 11, "them": 15, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "them"},
-        {"us": 2, "them": 3, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "them"},
-        {"us": 20, "them": 16, "server": MAP_STATE["THEIR_SERVE"], "observed_winner": "us"},
-        {"us": 15, "them": 15, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "us"},
-        {"us": 13, "them": 14, "server": MAP_STATE["THEIR_SERVE"], "observed_winner": "them"},
-        {"us": 21, "them": 22, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "them"},
-        {"us": 7, "them": 7, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "us"},
-        {"us": 9, "them": 12, "server": MAP_STATE["THEIR_SERVE"], "observed_winner": "them"},
-        {"us": 23, "them": 21, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "us"},
-        {"us": 18, "them": 16, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "us"},
-        {"us": 10, "them": 10, "server": MAP_STATE["THEIR_SERVE"], "observed_winner": "us"},
-        {"us": 5, "them": 8, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "them"},
-        {"us": 16, "them": 19, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "them"},
-        {"us": 24, "them": 25, "server": MAP_STATE["THEIR_SERVE"], "observed_winner": "them"},
-        {"us": 12, "them": 10, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "us"},
-        {"us": 1, "them": 4, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "them"},
-        {"us": 27, "them": 27, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "us"},
-        {"us": 20, "them": 22, "server": MAP_STATE["THEIR_SERVE"], "observed_winner": "them"},
-        {"us": 14, "them": 15, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "them"},
-        {"us": 22, "them": 20, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "us"},
-        {"us": 6, "them": 3, "server": MAP_STATE["THEIR_SERVE"], "observed_winner": "us"},
-        {"us": 11, "them": 9, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "us"},
-        {"us": 23, "them": 24, "server": MAP_STATE["OUR_SERVE"], "observed_winner": "them"}
+    # --- Validation scaffold demo ---
+    # These two "records" are ILLUSTRATIVE PLACEHOLDERS, not real match data.
+    # Replace with your own logged sets before trusting the accuracy number.
+    print("\n--- Validation scaffold demo (placeholder data, NOT real matches) ---")
+    example_records = [
+        {"score_us": 24, "score_them": 22, "serving": True, "p_win_serve": 0.55, "p_win_receive": 0.60, "observed_winner": "us"},
+        {"score_us": 20, "score_them": 24, "serving": False, "p_win_serve": 0.55, "p_win_receive": 0.60, "observed_winner": "them"},
     ]
-
-    concordant_predictions: int = 0
-    for data_point in synthetic_test_scenarios:
-        u_pt, t_pt, s_pt = data_point["us"], data_point["them"], data_point["server"]
-        if u_pt < deuce_cap + 1 and t_pt < deuce_cap + 1:
-            predicted_equity: float = v_grid[u_pt][t_pt][s_pt]
-            inferred_prediction: str = "us" if predicted_equity >= 0.5 else "them"
-            if inferred_prediction == data_point["observed_winner"]:
-                concordant_predictions += 1
-
-    dataset_accuracy: float = concordant_predictions / len(synthetic_test_scenarios)
-
-    flat_policy: List[int] = []
-    flat_delta_v: List[float] = []
-    for u in range(deuce_cap + 1):
-        for t in range(deuce_cap + 1):
-            flat_policy.append(int(policy_grid[u][t][MAP_STATE["OUR_SERVE"]]))
-            flat_delta_v.append(float(delta_v_grid[u][t][MAP_STATE["OUR_SERVE"]]))
-
-    payload: Dict[str, Any] = {
-        "server_name": server_name,
-        "best_action": int(policy_grid[score_us][score_them][MAP_STATE["OUR_SERVE"]]), 
-        "score_us": int(score_us), 
-        "score_them": int(score_them),
-        "server_state": int(server_state), 
-        "resolved_equity": float(resolved_equity), 
-        "ts_rally": float(ts_rally), 
-        "fl_rally": float(fl_rally),
-        "ts_rally_base": float(ts_rally_base),
-        "fl_rally_base": float(fl_rally_base),
-        "ts_n": int(ts_n),
-        "fl_n": int(fl_n),
-        "ts_low_confidence": bool(ts_low_confidence),
-        "fl_low_confidence": bool(fl_low_confidence),
-        "min_reliable_sample": int(MIN_RELIABLE_SAMPLE),
-        "ts_rally_raw_unshrunk": float(model.compute_rally_metrics(ts_v_raw)),
-        "fl_rally_raw_unshrunk": float(model.compute_rally_metrics(fl_v_raw)),
-        "pressure_at_score": float(pressure_at_score),
-        "leverage_at_score": float(leverage_at_score),
-        "press_amp_ts": float(press_amp_ts),
-        "press_amp_fl": float(press_amp_fl),
-        "sens_deltas": [float(x) for x in sens_deltas], 
-        "sens_serve_label": sens_serve_label,
-        "mc_equity": float(mc_equity), 
-        "mc_always_ts_equity": float(mc_always_ts_equity),
-        "mc_always_fl_equity": float(mc_always_fl_equity),
-        "mc_naive_equity": float(mc_naive_equity),
-        "ts_low": float(ts_low), 
-        "ts_high": float(ts_high),
-        "fl_low": float(fl_low), 
-        "fl_high": float(fl_high), 
-        "states_allocated": int(model.states_allocated),
-        "t_dp": float(t_dp), 
-        "trials": int(high_precision_trials), 
-        "deuce_cap": int(deuce_cap), 
-        "flat_policy": flat_policy,
-        "flat_delta_v": flat_delta_v,
-        "dataset_accuracy": float(dataset_accuracy)
-    }
-    
-    # Safe channel: assign the JSON as a JS object literal (valid JS, no single-quote
-    # wrapping) then invoke the handler with the object. Avoids the old injection /
-    # escaping bug where a stray quote or backslash in the payload broke js.eval.
-    js.eval("window.__enginePayload = " + json.dumps(payload) + "; window.handleEngineCallback(window.__enginePayload);")
-    btn.disabled = False; loader.style.display = "none"
-</script>
-</body>
-</html>
+    validation = VolleyballMatchSimulator.validate_against_recorded_sets(coach_simulator, example_records)
+    print(f"Accuracy on {validation['n_records']} placeholder records: {validation['accuracy']*100:.1f}% "
+          f"(replace with real logged sets for this to mean anything)")
